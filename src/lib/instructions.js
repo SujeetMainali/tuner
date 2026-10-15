@@ -1,12 +1,14 @@
 /*
  * Turns a key's measurements into tuning instructions. Pure functions: no DOM, testable in Node.
+ * The wording comes from src/i18n/messages.js (`ins`), in the requested language.
  *
  * Reed physics used here: a free reed's pitch rises when metal comes off the free tip (less mass
  * where it moves most) and falls when metal comes off near the root (a less stiff tongue).
  * Dirt or rust on the tongue adds mass and pulls it flat.
  */
-import { keyTarget, median, REED_BANKS } from './dsp.js';
-import { readingCents, shortAction, BANKS, UNSTEADY_SPREAD } from './format.js';
+import { keyTarget, median } from './dsp.js';
+import { readingCents, shortAction, swaraName, BANKS, UNSTEADY_SPREAD } from './format.js';
+import { messagesFor } from '../i18n/messages.js';
 
 export { shortAction };
 
@@ -17,53 +19,41 @@ const INSTRUMENT_OFFSET_MIN_KEYS = 8;
 const fmt = (c) => (c > 0 ? '+' : c < 0 ? '−' : '±') + Math.abs(c).toFixed(1) + '¢';
 const abs1 = (c) => Math.abs(c).toFixed(1) + '¢';
 
-function amountFor(absCents) {
-  if (absCents <= 5) return 'one or two very light strokes';
-  if (absCents <= 15) return 'two to four light strokes, measuring after every pair';
-  if (absCents <= 35) return 'rounds of three or four strokes, measuring after each round';
-  return 'steady rounds of strokes, measuring after each round';
+function amountFor(absCents, M) {
+  if (absCents <= 5) return M.amount.tiny;
+  if (absCents <= 15) return M.amount.small;
+  if (absCents <= 35) return M.amount.mid;
+  return M.amount.big;
 }
 
-function registerNote(soundingHz) {
-  if (soundingHz >= HIGH_REED_HZ) {
-    return 'This is a short, thin reed tongue. Each stroke moves the pitch a lot, so use the finest file or scraper and very light pressure.';
-  }
-  if (soundingHz <= LOW_REED_HZ) {
-    return 'This is a long, heavy reed tongue. The pitch moves slowly, so expect more strokes than on the treble reeds. If the tip carries a weight, do not file the weight.';
-  }
+function registerNote(soundingHz, M) {
+  if (soundingHz >= HIGH_REED_HZ) return M.regHigh;
+  if (soundingHz <= LOW_REED_HZ) return M.regLow;
   return null;
 }
 
 /** What the trend between the last two readings says about the last adjustment. */
-function trendNote(prevC, curC, tolerance) {
-  const delta = curC - prevC;
+function trendNote(prevC, curC, tolerance, M) {
   const absCur = Math.abs(curC);
   const absPrev = Math.abs(prevC);
+  const prev = fmt(prevC);
+  const cur = fmt(curC);
   if (absCur <= tolerance && absPrev > tolerance) {
-    return { kind: 'fixed', text: `Fixed: the last adjustment brought it from ${fmt(prevC)} to ${fmt(curC)}.` };
+    return { kind: 'fixed', text: M.trendFixed({ prev, cur }) };
   }
   if (absCur > tolerance && absPrev > tolerance && Math.sign(prevC) !== Math.sign(curC)) {
-    const end = curC > 0 ? 'root' : 'tip';
-    return {
-      kind: 'overshoot',
-      text: `Overshot: the last adjustment moved it from ${fmt(prevC)} past the target to ${fmt(curC)}. Correct back from the ${end} with lighter strokes than last time.`,
-    };
+    return { kind: 'overshoot', text: M.trendOvershoot({ prev, cur, fromRoot: curC > 0 }) };
   }
   if (absCur < absPrev - 0.5) {
     const moved = absPrev - absCur;
     const ratio = absCur / moved;
-    const more = ratio > 6
-      ? 'It needs much more of the same work; use slightly firmer strokes.'
-      : `About ${Math.max(0.5, Math.round(ratio * 2) / 2)}× the same amount of work again should bring it in.`;
-    return { kind: 'progress', text: `The last adjustment moved it ${abs1(moved)} closer (${fmt(prevC)} → ${fmt(curC)}). ${more}` };
+    const more = ratio > 6 ? M.trendMuchMore : M.trendMore(Math.max(0.5, Math.round(ratio * 2) / 2));
+    return { kind: 'progress', text: M.trendProgress({ moved: abs1(moved), prev, cur, more }) };
   }
   if (absCur > absPrev + 0.5 && Math.sign(prevC) === Math.sign(curC)) {
-    return {
-      kind: 'worse',
-      text: `It moved ${abs1(absCur - absPrev)} further away since the last reading (${fmt(prevC)} → ${fmt(curC)}). Check you are working the right end: the root lowers the pitch, the tip raises it.`,
-    };
+    return { kind: 'worse', text: M.trendWorse({ d: abs1(absCur - absPrev), prev, cur }) };
   }
-  return { kind: 'unchanged', text: `No real change since the last reading (${fmt(prevC)} → ${fmt(curC)}).` };
+  return { kind: 'unchanged', text: M.trendUnchanged({ prev, cur }) };
 }
 
 /** Median deviation of every measured key on a bank, or null if too few keys are measured. */
@@ -78,11 +68,14 @@ export function instrumentOffset(readings, bank, keys, tuning) {
 }
 
 /**
- * Full instructions for one key on one reed bank.
+ * Full instructions for one key on one reed bank, in `lang` ('en' or 'ne').
  * Returns { tone: 'good' | 'near' | 'off' | 'info', headline, steps: string[], notes: string[], short }.
  */
-export function keyInstructions({ k, bank, readings, tuning, tolerance, keys }) {
-  const bankLabel = REED_BANKS[bank].label;
+export function keyInstructions({ k, bank, readings, tuning, tolerance, keys, lang = 'en' }) {
+  const all = messagesFor(lang);
+  const M = all.ins;
+  const bankLabel = all.bank[bank];
+  const swara = swaraName(k, lang);
   const list = readings[bank]?.[k.midi] || [];
   const soundingHz = keyTarget(k.midi, bank, tuning);
   const notes = [];
@@ -90,14 +83,10 @@ export function keyInstructions({ k, bank, readings, tuning, tolerance, keys }) 
   if (!list.length) {
     return {
       tone: 'info',
-      headline: `Measure ${k.name} on the ${bankLabel} reed`,
-      steps: [
-        `Close every stop, then open only the ${bankLabel} stop.`,
-        `Pump to your normal playing pressure and hold ${k.name} (${k.swaraLatin}) for about two seconds.`,
-        'The reading saves automatically once it is steady.',
-      ],
+      headline: M.measureHead({ key: k.name, bank: bankLabel }),
+      steps: M.measureSteps({ bank: bankLabel, key: k.name, swara }),
       notes,
-      short: 'Measure',
+      short: all.short.measure,
     };
   }
 
@@ -107,10 +96,8 @@ export function keyInstructions({ k, bank, readings, tuning, tolerance, keys }) 
   const beat = Math.abs(cur.freq - soundingHz);
 
   // Response-based context: trend, the other reed banks on this key, and the instrument as a whole.
-  let trend = null;
   if (list.length >= 2) {
-    trend = trendNote(readingCents(list[list.length - 2], k.midi, bank, tuning), c, tolerance);
-    notes.push(trend.text);
+    notes.push(trendNote(readingCents(list[list.length - 2], k.midi, bank, tuning), c, tolerance, M).text);
   }
   for (const other of BANKS) {
     if (other === bank) continue;
@@ -118,76 +105,55 @@ export function keyInstructions({ k, bank, readings, tuning, tolerance, keys }) 
     if (!ol?.length) continue;
     const oc = readingCents(ol[ol.length - 1], k.midi, other, tuning);
     if (Math.abs(c - oc) > tolerance) {
-      notes.push(
-        `The ${REED_BANKS[other].label} reed on this key reads ${fmt(oc)}. With both stops open the two reeds are ${abs1(c - oc)} apart and will beat; tune each to its own target.`,
-      );
+      notes.push(M.otherBank({ bank: all.bank[other], oc: fmt(oc), apart: abs1(c - oc) }));
     }
   }
   const offset = instrumentOffset(readings, bank, keys, tuning);
   if (offset && Math.abs(offset.cents) > tolerance) {
-    const a4 = tuning.a4 * Math.pow(2, offset.cents / 1200);
-    notes.push(
-      `Across ${offset.count} measured keys the ${bankLabel} reeds sit around ${fmt(offset.cents)}. The harmonium may have been tuned to A4 ≈ ${a4.toFixed(1)} Hz. To keep its own pitch and only fix the outliers, set A4 to ${a4.toFixed(1)} in Settings.`,
-    );
+    const a4 = (tuning.a4 * Math.pow(2, offset.cents / 1200)).toFixed(1);
+    notes.push(M.offset({ count: offset.count, bank: bankLabel, off: fmt(offset.cents), a4 }));
   }
 
   // An unsteady reading must not drive metal removal.
   if (cur.spread > UNSTEADY_SPREAD) {
     return {
       tone: 'near',
-      headline: `Re-check before adjusting: the reading wandered ±${cur.spread.toFixed(1)}¢`,
-      steps: [
-        `Make sure only the ${bankLabel} stop is open and the drone stops are shut.`,
-        'Pump smoothly so the bellows pressure stays even, and hold the key longer.',
-        'If it still wavers, check that the reed sits tight in its slot and that the key pad closes fully; a loose reed or a leak makes the pitch drift.',
-        'Measure again. Only file the reed once the reading is steady.',
-      ],
+      headline: M.recheckHead(cur.spread.toFixed(1)),
+      steps: M.recheckSteps(bankLabel),
       notes,
-      short: 'Re-check',
+      short: all.short.recheck,
     };
   }
 
   if (a <= tolerance) {
-    const lean = a > tolerance * 0.6 ? ` It leans ${c > 0 ? 'sharp' : 'flat'}; leave it unless you want it tighter than ±${tolerance}¢.` : '';
+    const lean = a > tolerance * 0.6 ? M.lean({ sharp: c > 0, tol: tolerance }) : '';
     return {
       tone: 'good',
-      headline: `In tune: ${fmt(c)}. No work needed.`,
-      steps: [`Leave this reed alone.${lean}`],
+      headline: M.goodHead(fmt(c)),
+      steps: [M.goodStep(lean)],
       notes,
-      short: 'OK',
+      short: all.short.ok,
     };
   }
 
   const sharp = c > 0;
   const steps = [];
-  if (a > 35) {
-    steps.push(
-      `${abs1(c)} is a large error for one reed. Before filing, check that this reed belongs to ${k.name} (reeds can be swapped between slots), that the tongue is not cracked (a buzzy, weak tone), and that it does not rub the frame.`,
-    );
-  }
-  steps.push(`Open the harmonium and find the ${bankLabel} reed for key ${k.index + 1} (${k.name}, ${k.swaraLatin}). Mark it so it goes back the same way.`);
-  if (!sharp) {
-    steps.push('Clean the tongue first with a soft brush. Dust or rust adds weight and pulls a reed flat, and cleaning alone can bring it up a few cents. Re-measure after cleaning.');
-  }
-  steps.push('Slip a thin shim under the tongue so it is supported and cannot bend through the frame while you work.');
-  steps.push(
-    sharp
-      ? `To lower the pitch, remove metal near the root of the tongue, next to the rivet: ${amountFor(a)}.`
-      : `To raise the pitch, remove metal at the free tip of the tongue: ${amountFor(a)}.`,
-  );
-  steps.push(
-    `Refit the reed, open only the ${bankLabel} stop and re-measure. Use "Play target tone" to compare: it beats ${beat.toFixed(2)} times a second against the target now, and the beats slow and stop as it comes into tune.`,
-  );
-  steps.push(`Stop when it reads within ±${tolerance}¢. Remove too little rather than too much: going past the target means working the other end.`);
+  if (a > 35) steps.push(M.bigError({ a: abs1(c), key: k.name }));
+  steps.push(M.openReed({ bank: bankLabel, n: k.index + 1, key: k.name, swara }));
+  if (!sharp) steps.push(M.clean);
+  steps.push(M.shim);
+  steps.push(sharp ? M.lower(amountFor(a, M)) : M.raise(amountFor(a, M)));
+  steps.push(M.refit({ bank: bankLabel, beat: beat.toFixed(2) }));
+  steps.push(M.stopWhen(tolerance));
 
-  const reg = registerNote(soundingHz);
+  const reg = registerNote(soundingHz, M);
   if (reg) notes.unshift(reg);
 
   return {
     tone: a <= tolerance * 3 ? 'near' : 'off',
-    headline: `${sharp ? 'Sharp' : 'Flat'} by ${abs1(c)}: ${sharp ? 'lower it at the root' : 'raise it at the tip'}`,
+    headline: M.head({ sharp, a: abs1(c) }),
     steps,
     notes,
-    short: shortAction(c, cur.spread, tolerance),
+    short: shortAction(c, cur.spread, tolerance, lang),
   };
 }

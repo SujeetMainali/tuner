@@ -1,12 +1,19 @@
+import { useI18n } from '../i18n/I18n.jsx';
+
 /** Step-by-step tuning instructions for one key, built from its measurements. */
 export default function Instructions({ ins }) {
+  const { m } = useI18n();
   return (
-    <div className={'instructions tone-' + ins.tone} aria-label="Tuning instructions">
-      <div className="label">What to do</div>
-      <p className="ins-head">{ins.headline}</p>
+    <div className={'instructions tone-' + ins.tone} aria-label={m.badge.aria}>
+      <div className="ins-top">
+        <span className={'badge tone-' + ins.tone}>{m.badge[ins.tone] ?? m.badge.other}</span>
+        <h3 className="ins-head">{ins.headline}</h3>
+      </div>
       {ins.steps.length > 1 ? (
         <ol className="ins-steps">
-          {ins.steps.map((s) => <li key={s}>{s}</li>)}
+          {ins.steps.map((s, i) => (
+            <li key={s}><span className="step-n num" aria-hidden="true">{i + 1}</span><span>{s}</span></li>
+          ))}
         </ol>
       ) : (
         <p className="ins-single">{ins.steps[0]}</p>

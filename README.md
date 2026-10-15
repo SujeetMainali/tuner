@@ -1,10 +1,13 @@
+<img src="public/favicon.svg" width="56" alt="" align="left">
+
 # Bina 17 Tuner
 
 A mobile-first, key-by-key tuner for the Bina 17 harmonium (42 keys, double reed). It listens through the
 microphone and shows each key's deviation in cents, beat rate and steadiness. It saves a reading per key and
 reed bank, then gives step-by-step tuning instructions for every key based on what it measured: direction
 and amount, steadiness, the reed's register, progress since the last reading, agreement with the other reed
-bank, and whether the whole instrument sits at a different pitch.
+bank, and whether the whole instrument sits at a different pitch. It also includes a reference harmonium,
+so you can hear how every key should sound. The interface is available in English and Nepali (नेपाली).
 
 Built with React and Vite. No backend: readings are stored in the browser (`localStorage`).
 
@@ -21,9 +24,19 @@ Built with React and Vite. No backend: readings are stored in the browser (`loca
   adjustable.
 - **Instructions for each key.** Tells you which end of the reed tongue to work and roughly how much. It
   also reports overshoot and progress from earlier readings, and warns when the reed banks disagree.
-- **Report.** Shows every key with its status and the action to take. Copy it to a spreadsheet or export it
-  as CSV.
-- **Light and dark themes** that follow the system setting.
+- **Reference harmonium.** Switch the keyboard to *Play harmonium* to hear every key at its ideal pitch.
+  Pull out the Bass, Male and Female stops like on the real instrument, play chords, or use the computer
+  keys A–K. The pitches follow your settings for A4, tuning system and Sa.
+- **Ideal vs measured.** On any key, hear the ideal pitch, then your reed's measured pitch, then both
+  together. The beating you hear is how far off the reed is.
+- **Report.** Shows summary figures and a deviation chart for all keys, then a table with each key's status
+  and the action to take. Copy it to a spreadsheet or export it as CSV.
+- **English and Nepali.** Switch with the EN / ने buttons in the app bar. Everything is translated,
+  including the generated tuning instructions and the CSV report; swaras show in Devanagari. It starts in
+  Nepali on devices set to Nepali.
+- **Status by shape as well as colour** (dot, ring, diamond, dashed ring), so it reads without colour vision.
+- **Themes.** System (follows the device), Light, White (pure white, for bright rooms and printing) and Dark,
+  in Settings.
 
 ## Screenshots
 
@@ -38,20 +51,36 @@ Built with React and Vite. No backend: readings are stored in the browser (`loca
   </tr>
 </table>
 
-**Keyboard.** Each of the 42 keys shows its last reading and a status colour. Tap a key to inspect it.
+**Keyboard.** Each of the 42 keys shows its last reading and a status marker. Tap a key to inspect it.
 
 ![Keyboard overview with per-key cents and in-tune, close, needs-work and untested markers](docs/screenshots/keyboard.png)
 
+**Reference harmonium.** The same keyboard in Play mode, with the Bass and Male stops out and a C major
+chord held.
+
+![Reference harmonium with the Bass and Male stops out and C4, E4 and G4 held down](docs/screenshots/harmonium.png)
+
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/report.png" alt="Tuning report for the Male reeds: summary and per-key table"></td>
-    <td width="50%"><img src="docs/screenshots/key-sheet.png" alt="Key sheet for C4 with readings on each bank, instructions and history"></td>
+    <td width="50%"><img src="docs/screenshots/report.png" alt="Tuning report for the Male reeds: summary figures, deviation chart and per-key table"></td>
+    <td width="50%"><img src="docs/screenshots/key-sheet.png" alt="Key sheet for C4 with ideal and measured pitch on each bank, listen buttons and instructions"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Tuning report and CSV export</sub></td>
-    <td align="center"><sub>Key detail with reading history</sub></td>
+    <td align="center"><sub>Report with deviation chart</sub></td>
+    <td align="center"><sub>Key detail: ideal pitch, listen buttons, what to do</sub></td>
   </tr>
 </table>
+
+**Nepali and the White theme.**
+
+<table>
+  <tr>
+    <td width="68%"><img src="docs/screenshots/desktop-nepali-white.png" alt="The tuner in Nepali with the White theme: live reading and Nepali tuning instructions for C4"></td>
+    <td width="32%"><img src="docs/screenshots/mobile-nepali.png" alt="Phone in Nepali: toolbar, live reading and bottom tab bar"></td>
+  </tr>
+</table>
+
+<img src="docs/screenshots/settings.png" width="360" alt="Settings in Nepali: theme (System, Light, White, Dark), language, and instrument settings">
 
 <details>
 <summary>Dark theme</summary>
@@ -66,16 +95,23 @@ Built with React and Vite. No backend: readings are stored in the browser (`loca
 2. Select the same bank in the app. Place the phone 20–30 cm from the reed board in a quiet room.
 3. Pump the bellows to your normal playing pressure and hold each key for about two seconds.
 4. Work through all 42 keys, then switch banks and repeat.
-5. Follow each key's instructions. Scrape at the free tip to raise the pitch and near the rivet to lower
+5. To hear what a key should sound like, use *Hear ideal* on the key, or play it on the reference harmonium.
+   *Ideal vs measured* lets you hear the difference: the faster the beats, the further off the reed is.
+6. Follow each key's instructions. Scrape at the free tip to raise the pitch and near the rivet to lower
    it, a little at a time, measuring after each round. Old reeds are brittle. If you are unsure, take the
    report to a harmonium technician.
+
+## Adding or changing text
+
+All wording is in [src/i18n/messages.js](src/i18n/messages.js), with an `en` and an `ne` table of the same
+shape. `npm test` fails if a key is missing from either language.
 
 ## Run locally
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm test         # pitch-detection and tuning maths tests
+npm test         # pitch detection, tuning maths, instructions, harmonium pitches, translations
 npm run build    # production build in dist/
 ```
 
@@ -101,9 +137,13 @@ src/
   lib/instructions.js     per-key tuning instructions built from the readings
   lib/report.js           CSV and copy-to-spreadsheet report
   lib/format.js           formatting, per-key status, short actions
-  hooks/useTuner.js       microphone, detection loop, steady-hold auto-save, reference tone
-  hooks/useTuningStore.js settings and saved readings, persisted to localStorage
+  lib/harmonium.js        reference harmonium: reed-like Web Audio voices at each key's ideal pitch
+  hooks/useTuner.js       microphone, detection loop, steady-hold auto-save
+  hooks/useHarmonium.js   playing the reference harmonium (pointer, computer keys), pauses detection meanwhile
+  hooks/useTuningStore.js settings, theme, language and saved readings, persisted to localStorage
+  i18n/messages.js        every user-facing string in English and Nepali
+  i18n/I18n.jsx           language context for components
   components/             Readout, Strobe, Meter, Controls, Keyboard, KeySheet, Instructions, Report, ...
-tests/                    accuracy tests (within 0.1 cent from C2 to F6) and instruction tests
+tests/                    accuracy (within 0.1 cent from C2 to F6), instructions, harmonium and translation tests
 docs/screenshots/         images used in this README
 ```

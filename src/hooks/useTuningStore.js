@@ -5,12 +5,20 @@ const MAX_HISTORY = 6;
 
 export const DEFAULT_SETTINGS = { a4: 440, system: 'equal', saPc: 0, lowestMidi: 48, keyCount: 42, tolerance: 3 };
 
+const browserLang = () => {
+  try { return (navigator.languages || [navigator.language]).some((l) => /^ne\b/i.test(l)) ? 'ne' : 'en'; } catch { return 'en'; }
+};
+
 const DEFAULTS = {
   settings: DEFAULT_SETTINGS,
+  lang: browserLang(), // 'en' | 'ne'
+  theme: 'system', // 'system' | 'light' | 'white' | 'dark'
   bank: 'male',
   mode: 'auto',
   selectedMidi: 60,
   autoSave: true,
+  keyboardMode: 'inspect', // 'inspect' selects keys, 'play' sounds the reference harmonium
+  stops: { bass: false, male: true, female: false }, // reference harmonium stops
   readings: { bass: {}, male: {}, female: {} }, // bank -> midi -> [{ freq, spread, at }]
 };
 
@@ -24,6 +32,7 @@ function load() {
         ...s,
         settings: { ...DEFAULTS.settings, ...(s.settings || {}) },
         readings: { ...DEFAULTS.readings, ...(s.readings || {}) },
+        stops: { ...DEFAULTS.stops, ...(s.stops || {}) },
       };
     }
   } catch {
@@ -51,6 +60,10 @@ export function useTuningStore() {
     setBank: useCallback((bank) => patch({ bank }), [patch]),
     setMode: useCallback((mode) => patch({ mode }), [patch]),
     setAutoSave: useCallback((autoSave) => patch({ autoSave }), [patch]),
+    setLang: useCallback((lang) => patch({ lang }), [patch]),
+    setTheme: useCallback((theme) => patch({ theme }), [patch]),
+    setKeyboardMode: useCallback((keyboardMode) => patch({ keyboardMode }), [patch]),
+    toggleStop: useCallback((bank) => setState((s) => ({ ...s, stops: { ...s.stops, [bank]: !s.stops[bank] } })), []),
     selectKey: useCallback((selectedMidi) => patch({ selectedMidi }), [patch]),
 
     saveReading: useCallback((midi, freq, spread) => {

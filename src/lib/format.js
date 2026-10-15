@@ -1,4 +1,5 @@
 import { compareToTarget, keyTarget, status } from './dsp.js';
+import { messagesFor } from '../i18n/messages.js';
 
 export const BANKS = ['bass', 'male', 'female'];
 
@@ -6,23 +7,27 @@ export const BANKS = ['bass', 'male', 'female'];
 export const UNSTEADY_SPREAD = 2.5;
 
 /** One-line action for tables, the CSV and the live readout. */
-export function shortAction(cents, spread, tolerance) {
-  if (cents == null) return 'Measure';
-  if (spread != null && spread > UNSTEADY_SPREAD) return 'Re-check';
+export function shortAction(cents, spread, tolerance, lang = 'en') {
+  const m = messagesFor(lang).short;
+  if (cents == null) return m.measure;
+  if (spread != null && spread > UNSTEADY_SPREAD) return m.recheck;
   const a = Math.abs(cents).toFixed(1) + '¢';
-  if (Math.abs(cents) <= tolerance) return 'OK';
-  return cents > 0 ? `Lower ${a} · root` : `Raise ${a} · tip`;
+  if (Math.abs(cents) <= tolerance) return m.ok;
+  return cents > 0 ? m.lower(a) : m.raise(a);
 }
 
-export const SAPTAK = {
-  '-2': 'Ati-mandra saptak',
-  '-1': 'Mandra saptak',
-  0: 'Madhya saptak',
-  1: 'Taar saptak',
-  2: 'Ati-taar saptak',
+export const saptakName = (saptak, lang = 'en') => {
+  const m = messagesFor(lang).saptak;
+  return m[saptak] ?? m.other(saptak);
 };
 
-export const STATUS_TEXT = { good: 'In tune', near: 'Close', off: 'Needs work', untested: 'Not tested' };
+export const statusText = (st, lang = 'en') => messagesFor(lang).status[st];
+export const STATUS_TEXT = messagesFor('en').status;
+
+export const bankName = (bank, lang = 'en') => messagesFor(lang).bank[bank];
+
+/** Swara of a key: Latin (Sa, Re…) in English, Devanagari (सा, रे…) in Nepali. */
+export const swaraName = (k, lang = 'en') => (lang === 'ne' ? k.swara : k.swaraLatin);
 
 export const fmtCents = (c) =>
   c == null || Number.isNaN(c) ? '—' : (c > 0 ? '+' : c < 0 ? '−' : '±') + Math.abs(c).toFixed(1) + '¢';
@@ -35,9 +40,10 @@ export function saptakDots(saptak) {
   return saptak > 0 ? { above: s, below: '' } : { above: '', below: s };
 }
 
-export function direction(cents, tolerance) {
-  if (Math.abs(cents) <= tolerance) return 'In tune';
-  return cents > 0 ? 'Sharp' : 'Flat';
+export function direction(cents, tolerance, lang = 'en') {
+  const m = messagesFor(lang).direction;
+  if (Math.abs(cents) <= tolerance) return m.inTune;
+  return cents > 0 ? m.sharp : m.flat;
 }
 
 export const latest = (readings, bank, midi) => {

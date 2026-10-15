@@ -1,15 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildKeys, compareToTarget, keyTarget } from './lib/dsp.js';
-import { fmtCents } from './lib/format.js';
+import { bankName, fmtCents, latest, swaraName } from './lib/format.js';
+import { I18nProvider } from './i18n/I18n.jsx';
+import { LANGUAGES, messagesFor } from './i18n/messages.js';
+import { useHarmonium } from './hooks/useHarmonium.js';
 import { useTuner } from './hooks/useTuner.js';
 import { useTuningStore } from './hooks/useTuningStore.js';
 import Controls from './components/Controls.jsx';
 import Guide from './components/Guide.jsx';
 import Keyboard from './components/Keyboard.jsx';
 import KeySheet from './components/KeySheet.jsx';
+import Logo from './components/Logo.jsx';
 import Readout from './components/Readout.jsx';
 import Report from './components/Report.jsx';
 import SettingsDialog from './components/SettingsDialog.jsx';
+import TabBar from './components/TabBar.jsx';
+
+// Browser chrome colour for each forced theme (index.html covers 'system').
+const THEME_COLOR = { light: '#f4f5f7', white: '#ffffff', dark: '#0f1115' };
+
+/** Applies the chosen theme and language to <html>, so CSS and screen readers pick them up. */
+function useDocumentPrefs(theme, lang) {
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'system') delete root.dataset.theme;
+    else root.dataset.theme = theme;
+    document.querySelectorAll('meta[name="theme-color"]').forEach((el) => {
+      if (!el.dataset.auto) el.dataset.auto = el.content;
+      el.content = THEME_COLOR[theme] ?? el.dataset.auto;
+    });
+  }, [theme]);
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+}
 
 function useToast() {
   const [message, setMessage] = useState(null);
@@ -25,7 +47,9 @@ function useToast() {
 
 export default function App() {
   const [state, act] = useTuningStore();
-  const { settings, bank, mode, autoSave, readings } = state;
+  const { settings, bank, mode, autoSave, readings, keyboardMode, stops, lang, theme } = state;
+  const m = messagesFor(lang);
+  useDocumentPrefs(theme, lang);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, showToast] = useToast();
 
@@ -44,9 +68,9 @@ export default function App() {
     act.saveReading(midi, freq, spread);
     const k = keyByMidi.get(midi);
     const cents = compareToTarget(freq, keyTarget(midi, bank, tuning)).cents;
-    showToast(`Saved ${k.name} (${k.swaraLatin}) · ${fmtCents(cents)}`);
+    showToast(m.toast.saved({ key: k.name, swara: swaraName(k, lang), c: fmtCents(cents) }));
     try { navigator.vibrate?.(30); } catch { /* not supported */ }
-  }, [act, keyByMidi, bank, tuning, showToast]);
+  }, [act, keyByMidi, bank, tuning, showToast, m, lang]);
 
   const tuner = useTuner({
     keys, bank, mode, tuning, autoSave, onSave,
@@ -64,73 +88,133 @@ export default function App() {
     if (next) selectFromTap(next.midi);
   };
 
+  // Sa of the madhya saptak: where the computer keyboard's home row starts.
+  const saMidi = (keys.find((k) => k.saptak === 0 && k.swaraLatin === 'Sa') ?? keys[0]).midi;
+  const { pause } = tuner;
+  const onSounding = useCallback((on, ms) => pause(on ? (ms ? ms + 300 : 3.6e6) : 350), [pause]);
+  const harmonium = useHarmonium({
+    stops, tuning, keys, baseMidi: saMidi, keysEnabled: keyboardMode === 'play' && !settingsOpen, onSounding,
+  });
+
+  const { noteOn } = harmonium;
+  const playKey = useCallback((midi) => {
+    noteOn(midi);
+    act.selectKey(midi);
+  }, [noteOn, act]);
+
+  const hearIdeal = (b) => {
+    const f = keyTarget(selected.midi, b, tuning);
+    harmonium.playSequence([[f]], 2);
+    showToast(m.toast.ideal({ key: selected.name, bank: bankName(b, lang), hz: f.toFixed(2) }));
+  };
+  const compare = (b) => {
+    const r = latest(readings, b, selected.midi);
+    if (!r) return;
+    const f = keyTarget(selected.midi, b, tuning);
+    harmonium.playSequence([[f], [r.freq], [f, r.freq]], 1.5);
+    showToast(m.toast.compare);
+  };
+
   const first = keys[0];
   const last = keys[keys.length - 1];
   const liveMidi = tuner.live.kind === 'note' ? tuner.live.midi : null;
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <h1>Bina 17 Tuner</h1>
-          <p>
-            {keys.length} keys · {first.name}–{last.name} · {settings.system === 'just' ? 'Just intonation' : 'Equal temperament'} ·{' '}
-            <span style={{ whiteSpace: 'nowrap' }}>A4 = {settings.a4} Hz</span>
-          </p>
+    <I18nProvider lang={lang}>
+    <div className="shell">
+      <header className="appbar">
+        <div className="wrap appbar-in">
+          <div className="brand">
+            <Logo />
+            <div>
+              <h1>Bina 17 Tuner</h1>
+              <p>{m.app.subtitle}</p>
+            </div>
+          </div>
+          <dl className="context">
+            <div><dt>{m.app.range}</dt><dd className="num">{first.name}–{last.name} · {m.app.keysCount(keys.length)}</dd></div>
+            <div><dt>{m.app.systemLabel}</dt><dd>{m.system[settings.system === 'just' ? 'just' : 'equal']}</dd></div>
+            <div><dt>{m.app.reference}</dt><dd className="num">A4 = {settings.a4} Hz</dd></div>
+            <div><dt>{m.app.tolerance}</dt><dd className="num">±{settings.tolerance}¢</dd></div>
+          </dl>
+          <div className="appbar-end">
+            <span className={'pill' + (tuner.listening ? ' on' : '')}>
+              <span className="pill-dot" aria-hidden="true" />{tuner.listening ? m.app.micOn : m.app.micOff}
+            </span>
+            <div className="seg seg-sm" role="group" aria-label={m.app.language}>
+              {LANGUAGES.map((l) => (
+                <button key={l.id} type="button" lang={l.id} aria-pressed={lang === l.id} title={l.label} onClick={() => act.setLang(l.id)}>
+                  {l.short}
+                </button>
+              ))}
+            </div>
+            <button className="btn" type="button" onClick={() => setSettingsOpen(true)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></svg>
+              <span className="btn-label">{m.app.settings}</span>
+            </button>
+          </div>
         </div>
-        <button className="icon-btn" type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
       </header>
 
-      <div className="col col-live">
-        <Readout
-          live={tuner.live}
-          bank={bank}
-          notice={tuner.notice}
-          keyByMidi={keyByMidi}
-          tolerance={settings.tolerance}
-          centsRef={tuner.centsRef}
-        />
-        <Controls
-          listening={tuner.listening}
-          onToggleListening={tuner.listening ? tuner.stop : tuner.start}
-          bank={bank}
-          onBank={act.setBank}
-          mode={mode}
-          onMode={act.setMode}
-          autoSave={autoSave}
-          onAutoSave={act.setAutoSave}
-          onSaveNow={() => { if (!tuner.saveCurrent()) showToast('Play and hold a key first'); }}
-          onPlayTarget={() => {
-            const f = keyTarget(selected.midi, bank, tuning);
-            tuner.playReference(f);
-            showToast(`Playing ${selected.name} target · ${f.toFixed(2)} Hz`);
-          }}
-        />
-      </div>
-
-      <Keyboard
-        keys={keys}
-        readings={readings}
+      <Controls
+        listening={tuner.listening}
+        onToggleListening={tuner.listening ? tuner.stop : tuner.start}
         bank={bank}
-        tuning={tuning}
-        tolerance={settings.tolerance}
-        selectedMidi={selected.midi}
-        liveMidi={liveMidi}
-        onSelect={selectFromTap}
+        onBank={act.setBank}
+        mode={mode}
+        onMode={act.setMode}
+        autoSave={autoSave}
+        onAutoSave={act.setAutoSave}
+        onSaveNow={() => { if (!tuner.saveCurrent()) showToast(m.toast.holdFirst); }}
+        onPlayTarget={() => hearIdeal(bank)}
       />
 
-      <div className="col col-detail">
-        <KeySheet
-          k={selected}
+      <main className="wrap main">
+        <div className="row-top">
+          <Readout
+            live={tuner.live}
+            bank={bank}
+            mode={mode}
+            notice={tuner.notice}
+            keyByMidi={keyByMidi}
+            keyCount={keys.length}
+            tolerance={settings.tolerance}
+            centsRef={tuner.centsRef}
+          />
+          <KeySheet
+            k={selected}
+            keys={keys}
+            readings={readings}
+            bank={bank}
+            tuning={tuning}
+            tolerance={settings.tolerance}
+            onPrev={() => step(-1)}
+            onNext={() => step(1)}
+            onHear={hearIdeal}
+            onCompare={compare}
+            onClear={() => { act.clearKey(selected.midi); showToast(m.toast.cleared); }}
+          />
+        </div>
+
+        <Keyboard
           keys={keys}
           readings={readings}
           bank={bank}
           tuning={tuning}
           tolerance={settings.tolerance}
-          onPrev={() => step(-1)}
-          onNext={() => step(1)}
-          onClear={() => { act.clearKey(selected.midi); showToast('Cleared'); }}
+          selectedMidi={selected.midi}
+          liveMidi={liveMidi}
+          onSelect={selectFromTap}
+          mode={keyboardMode}
+          onMode={(m) => { harmonium.allOff(); act.setKeyboardMode(m); }}
+          stops={stops}
+          onToggleStop={act.toggleStop}
+          down={harmonium.down}
+          onNoteOn={playKey}
+          onNoteOff={harmonium.noteOff}
+          saMidi={saMidi}
         />
+
         <Report
           keys={keys}
           readings={readings}
@@ -141,19 +225,26 @@ export default function App() {
           onSelect={selectFromTap}
           onToast={showToast}
         />
-      </div>
 
-      <Guide />
+        <Guide />
+      </main>
+
+      <TabBar />
 
       <SettingsDialog
         open={settingsOpen}
         settings={settings}
+        theme={theme}
+        onTheme={act.setTheme}
+        lang={lang}
+        onLang={act.setLang}
         onClose={() => setSettingsOpen(false)}
-        onSave={(s) => { act.setSettings(s); setSettingsOpen(false); showToast('Settings saved'); }}
-        onClearAll={() => { act.clearAll(); showToast('All readings cleared'); }}
+        onSave={(s) => { act.setSettings(s); setSettingsOpen(false); showToast(m.toast.settingsSaved); }}
+        onClearAll={() => { act.clearAll(); showToast(m.toast.allCleared); }}
       />
 
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
+    </I18nProvider>
   );
 }

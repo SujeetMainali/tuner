@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /** A destructive button that needs a second tap within a few seconds. */
-export default function ConfirmButton({ label, confirmLabel, onConfirm, className = 'ghost' }) {
+export default function ConfirmButton({ label, confirmLabel, onConfirm, className = 'btn' }) {
   const [armed, setArmed] = useState(false);
 
   useEffect(() => {

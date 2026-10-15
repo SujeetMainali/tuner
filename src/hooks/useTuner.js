@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { compareToTarget, keyTarget, median, nearestKey, yin, REED_BANKS } from '../lib/dsp.js';
+import { compareToTarget, keyTarget, median, nearestKey, yin } from '../lib/dsp.js';
 
 const FRAME_MS = 40;
 const SILENCE_MS = 450;
@@ -26,8 +26,12 @@ export function useTuner(config) {
   cfg.current = config;
 
   const [listening, setListening] = useState(false);
-  const [live, setLive] = useState(idle('Not listening'));
+  const [live, setLive] = useState(idle('notListening'));
   const [notice, setNotice] = useState(null);
+  // Labels and notices are message ids (src/i18n/messages.js `tuner`), translated where they are shown.
+  const note = useCallback((id, params) => {
+    setNotice((prev) => (prev?.id === id && JSON.stringify(prev.params) === JSON.stringify(params) ? prev : { id, params }));
+  }, []);
   const centsRef = useRef(null); // read by the strobe's animation loop without re-rendering
   const audio = useRef({ ctx: null, analyser: null, stream: null, timer: null, wakeLock: null, frame: null });
   const hold = useRef({ midi: null, history: [], saved: false, start: 0, lastHeard: 0, ignoreUntil: 0 });
@@ -58,7 +62,10 @@ export function useTuner(config) {
     const { keys, bank, mode, selectedMidi, tuning, autoSave, onSave, onKeyDetected } = cfg.current;
     if (!a.analyser) return;
     const now = performance.now();
-    if (now < h.ignoreUntil) return; // our own reference tone is playing
+    if (now < h.ignoreUntil) { // our own harmonium is sounding
+      showIdle('paused');
+      return;
+    }
 
     if (!a.frame || a.frame.length !== a.analyser.fftSize) a.frame = new Float32Array(a.analyser.fftSize);
     a.analyser.getFloatTimeDomainData(a.frame);
@@ -69,7 +76,7 @@ export function useTuner(config) {
         resetHold();
         h.midi = null;
         setNotice(null);
-        showIdle('Listening…');
+        showIdle('listening');
       }
       return;
     }
@@ -86,7 +93,7 @@ export function useTuner(config) {
         h.midi = null;
         centsRef.current = null;
         setLive({ kind: 'out', freq: r.freq });
-        setNotice('That pitch is outside this keyboard on the selected reed bank. Check the reed bank and the lowest key in Settings.');
+        note('outside');
         return;
       }
       midi = n.key.midi;
@@ -115,9 +122,9 @@ export function useTuner(config) {
     if (octaveOffset !== 0) {
       const n = Math.abs(octaveOffset);
       const key = keys.find((k) => k.midi === midi);
-      setNotice(`This sounds ${n} octave${n > 1 ? 's' : ''} ${octaveOffset > 0 ? 'above' : 'below'} the ${REED_BANKS[bank].label} reed for ${key?.name}. Check which stops are open, or pick the matching reed bank.`);
+      note('octave', { n, above: octaveOffset > 0, bank, key: key?.name });
     } else if (spread > 4 && h.history.length > STEADY_MIN_FRAMES) {
-      setNotice('The pitch is wavering. Close all stops except one reed bank, and keep the bellows pressure even.');
+      note('wavering');
     } else {
       setNotice(null);
     }
@@ -126,7 +133,7 @@ export function useTuner(config) {
       h.saved = true;
       onSave?.(midi, freq, spread);
     }
-  }, [resetHold, showIdle]);
+  }, [resetHold, showIdle, note]);
 
   const stop = useCallback(() => {
     const a = audio.current;
@@ -138,16 +145,16 @@ export function useTuner(config) {
     resetHold();
     hold.current.midi = null;
     setListening(false);
-    showIdle('Not listening');
+    showIdle('notListening');
   }, [resetHold, showIdle]);
 
   const start = useCallback(async () => {
     if (!window.isSecureContext) {
-      setNotice('The microphone only works over HTTPS or on localhost. Open this page from a secure address.');
+      note('insecure');
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setNotice('This browser cannot use the microphone. Try a current Chrome, Safari or Firefox.');
+      note('noApi');
       return;
     }
     const a = audio.current;
@@ -171,42 +178,19 @@ export function useTuner(config) {
       await requestWakeLock();
       setListening(true);
       setNotice(null);
-      showIdle('Listening…');
+      showIdle('listening');
     } catch (e) {
       stop();
-      if (e.name === 'NotAllowedError') setNotice('Microphone access was blocked. Allow the microphone for this page in your browser settings, then try again.');
-      else if (e.name === 'NotFoundError') setNotice('No microphone was found on this device.');
-      else setNotice('The microphone could not start: ' + e.message);
+      if (e.name === 'NotAllowedError') note('blocked');
+      else if (e.name === 'NotFoundError') note('notFound');
+      else note('failed', { msg: e.message });
     }
-  }, [tick, stop, requestWakeLock, showIdle]);
+  }, [tick, stop, requestWakeLock, showIdle, note]);
 
-  /** Plays the selected key's target pitch with a reed-like tone; detection pauses meanwhile. */
-  const playReference = useCallback(async (freq) => {
-    let ctx = audio.current.ctx;
-    const own = !ctx;
-    if (own) ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') await ctx.resume();
-    const t0 = ctx.currentTime;
-    const dur = 2.2;
-    const out = ctx.createGain();
-    out.gain.setValueAtTime(0, t0);
-    out.gain.linearRampToValueAtTime(0.25, t0 + 0.05);
-    out.gain.setValueAtTime(0.25, t0 + dur - 0.15);
-    out.gain.linearRampToValueAtTime(0, t0 + dur);
-    out.connect(ctx.destination);
-    // Strong low harmonics, odd ones slightly favoured, like a free reed.
-    const real = new Float32Array(16);
-    const imag = new Float32Array(16);
-    for (let n = 1; n < 16; n++) imag[n] = (n % 2 ? 1 : 0.6) / n;
-    const osc = ctx.createOscillator();
-    osc.setPeriodicWave(ctx.createPeriodicWave(real, imag));
-    osc.frequency.value = freq;
-    osc.connect(out);
-    osc.start(t0);
-    osc.stop(t0 + dur);
-    hold.current.ignoreUntil = performance.now() + dur * 1000 + 250;
+  /** Ignores the microphone for `ms`, so the app's own harmonium is not measured as the instrument. */
+  const pause = useCallback((ms) => {
+    hold.current.ignoreUntil = performance.now() + ms;
     resetHold();
-    if (own) osc.onended = () => ctx.close().catch(() => {});
   }, [resetHold]);
 
   const liveRef = useRef(live);
@@ -236,5 +220,5 @@ export function useTuner(config) {
 
   useEffect(() => stop, [stop]);
 
-  return { listening, live, notice, centsRef, start, stop, playReference, saveCurrent };
+  return { listening, live, notice, centsRef, start, stop, pause, saveCurrent };
 }
