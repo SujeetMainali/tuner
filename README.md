@@ -1,119 +1,145 @@
 <img src="public/favicon.svg" width="56" alt="" align="left">
 
-# Bina 17 Tuner
+# Swara
 
-A mobile-first, key-by-key tuner for the Bina 17 harmonium (42 keys, double reed). It listens through the
-microphone and shows each key's deviation in cents, beat rate and steadiness. It saves a reading per key and
-reed bank, then gives step-by-step tuning instructions for every key based on what it measured: direction
-and amount, steadiness, the reed's register, progress since the last reading, agreement with the other reed
-bank, and whether the whole instrument sits at a different pitch. It also includes a reference harmonium,
-so you can hear how every key should sound. The interface is available in English, Nepali (नेपाली) and Hindi (हिन्दी).
+**Virtual harmonium · tuner · riyaz.** A mobile-first web app for harmonium players, built around the
+Bina 17 (42 keys, double reed). It has four parts:
 
-Built with React and Vite. No backend: readings are stored in the browser (`localStorage`).
+- **Tune:** a key-by-key tuner. It listens through the microphone, shows each reed's deviation in cents
+  and says which end of the reed tongue to file.
+- **Play:** a virtual harmonium with every key at its true pitch.
+- **Riyaz:** alankars, ragas and bhajans with a tanpura and tabla.
+- **Report:** a report of every reed, for you or a harmonium technician.
 
-![Bina 17 Tuner on desktop: live reading of C4 at +6.2 cents, with the selected key's instructions alongside](docs/screenshots/desktop-light.png)
+The interface is in English, Nepali (नेपाली) and Hindi (हिन्दी).
+
+Built with React and Vite. No backend: readings and settings are stored in the browser (`localStorage`).
+
+![Swara on desktop: Home with the get-started checklist, quick sounds and the four sections](docs/screenshots/desktop-home.png)
 
 ## Features
 
-- **Live reading.** Shows the swara in Devanagari, the Western note name and the cents deviation, with a
-  strobe and a ±50¢ meter. Also shows measured and target frequency, beat rate and steadiness.
-- **Three reed banks.** Bass (16'), Male (8') and Female (4') each get their own targets and readings.
-- **Find the key automatically, or lock one.** Hold a key steady for about a second and the reading saves
-  itself.
-- **Equal temperament or just intonation.** Uses 5-limit just ratios from a Sa you choose, with A4
-  adjustable.
-- **Instructions for each key.** Tells you which end of the reed tongue to work and roughly how much. It
-  also reports overshoot and progress from earlier readings, and warns when the reed banks disagree.
-- **Reference harmonium.** Switch the keyboard to *Play harmonium* to hear every key at its ideal pitch.
-  Pull out the Bass, Male and Female stops like on the real instrument, play chords, or use the computer
-  keys A–K. The pitches follow your settings for A4, tuning system and Sa.
-- **Ideal vs measured.** On any key, hear the ideal pitch, then your reed's measured pitch, then both
-  together. The beating you hear is how far off the reed is.
-- **Report.** Shows summary figures and a deviation chart for all keys, then a table with each key's status
-  and the action to take. Copy it to a spreadsheet or export it as CSV.
-- **English, Nepali and Hindi.** Switch with the EN / ने / हि buttons in the app bar (a dropdown on phones).
-  Everything is translated, including the generated tuning instructions and the CSV report; swaras show in
-  Devanagari. It starts in the device's language, and `/ne/` and `/hi/` always open in that language.
-- **Landscape keyboard on phones.** The *Landscape* button on the keyboard opens all 42 keys at once, full
-  screen and sideways, so there is no scrolling. It works in Inspect and Play modes. Where the browser
-  allows it the screen locks to landscape; otherwise (iPhone) the view turns itself and you turn the phone.
-- **Status by shape as well as colour** (dot, ring, diamond, dashed ring), so it reads without colour vision.
-- **Themes.** System (follows the device), Light, White (pure white, for bright rooms and printing) and Dark,
-  in Settings.
+- **First-run setup.** Three short steps on a phone: language; what to do first, which key is Sa
+  (safed 1, kali 1, …) and which reed stops you use; then why the app needs the microphone. On desktop all
+  three are on one card. You can skip it and change everything later in Settings.
+- **Home.** A *Get started* checklist (set up, check one reed, play your first alankar). When it is done it
+  becomes a summary of how many reeds are in tune. Home also has a door into each section and one-tap
+  *Tanpura* and *Hear Sa*.
+- **Tune.**
+  - The live reading shows the swara, the note name, the cents deviation and a ±50¢ meter with the
+    tolerance band. On desktop it also shows the measured and target frequency and the steadiness.
+  - Every reading comes with plain advice ("Lower it at the root", "Raise it at the tip", "In tune. Leave
+    this reed") and progress since the last reading.
+  - Bass (16′), Male (8′) and Female (4′) reeds have their own targets and readings. Hold a key steady and
+    the reading saves itself. Tapping a key listens for that key only.
+  - Each key has a *Key details* sheet: targets on all three banks, *Ideal vs measured*, the full
+    step-by-step instructions, saved readings and clearing the key.
+  - On a computer, Space saves and ← / → change key.
+- **Play.** A virtual harmonium with the Bass, Male and Female stops, as on the real instrument.
+  - On a phone the keys stand upright, high notes at the top. *Landscape* opens all 42 keys sideways, full
+    screen.
+  - On a computer you can also play with the keys A–K (Sa to Sa) and W E T Y U (komal and tivra). Z and X
+    change octave; Space releases everything.
+  - *Hold notes* lets one tap sound a note until you tap it again, so you can build chords and drones.
+    *Highlight a raga* dims the keys outside it. There is a tanpura drone and a volume control.
+  - Every key sounds at the pitch your settings give it (A4, equal or just tuning, Sa).
+- **Riyaz.**
+  - *Alankars:* eight standard patterns in any of the ten thaats, at one to four notes per beat.
+  - *Ragas:* twelve common ragas with thaat, jati, vadi/samvadi, time of day, aaroh, avroh and pakad, and
+    exercises in each raga's own scale.
+  - *Bhajans:* a free jam, six Krishna bhajans with traditional words set to simple practice tunes, and
+    your own bhajans typed in sargam.
+  - Practice has a full screen of its own:
+    - The keyboard lights the note to play and dims notes outside the scale. On a phone it stands upright
+      beside the notation, so the keys never scroll out of view.
+    - The notation is laid out by taal with sam, tali and khali marks and follows the playhead.
+    - One bar holds tempo, play and loop.
+    - Everything else is in *Sounds*: the harmonium playing the notes, tanpura, tabla, *Check me with the
+      mic* (which marks each note right or wrong), taal, speed of notes and script.
+- **Report.** A summary of the bank (in tune, close, off, not checked) and *Fix these first*, the keys
+  furthest off first, with the action for each. On desktop it adds a deviation chart and a filterable table
+  of every key. You can copy the table to a spreadsheet or export it as CSV.
+- **English, Nepali and Hindi.** Everything is translated, including the generated tuning instructions and
+  the CSV. Swaras show in Devanagari. The app starts in the device's language, and `/ne/` and `/hi/` always
+  open in that language.
+- **Phones and desktops.** Phones get a bottom tab bar and upright keyboards; desktops get a sidebar and
+  full-width keyboards. Both layouts come from the same components.
+- **Themes.** System, Light, White (for bright rooms and printing) and Dark, in Settings.
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/mobile-live.png" alt="Phone: live reading of C4, 6.2 cents sharp, with strobe and meter"></td>
-    <td width="50%"><img src="docs/screenshots/mobile-key.png" alt="Phone: selected key sheet with targets on each reed bank and step-by-step reed instructions"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Live reading on a phone</sub></td>
-    <td align="center"><sub>What to do for the selected key</sub></td>
-  </tr>
-</table>
-
-**Keyboard.** Each of the 42 keys shows its last reading and a status marker. Tap a key to inspect it.
-
-![Keyboard overview with per-key cents and in-tune, close, needs-work and untested markers](docs/screenshots/keyboard.png)
-
-**Reference harmonium.** The same keyboard in Play mode, with the Bass and Male stops out and a C major
-chord held.
-
-![Reference harmonium with the Bass and Male stops out and C4, E4 and G4 held down](docs/screenshots/harmonium.png)
+**Phone.**
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/report.png" alt="Tuning report for the Male reeds: summary figures, deviation chart and per-key table"></td>
-    <td width="50%"><img src="docs/screenshots/key-sheet.png" alt="Key sheet for C4 with ideal and measured pitch on each bank, listen buttons and instructions"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-welcome.png" alt="Welcome: the SWARA mark, a row of swara keys and the language choice"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-home.png" alt="Home: get started checklist, Tune and Riyaz doors, Tanpura and Hear Sa"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-tune.png" alt="Tune: a tip, the reading card with meter and the advice to lower the reed at the root"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-play.png" alt="Play: upright virtual harmonium with Sa, Ga and Pa held"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Report with deviation chart</sub></td>
-    <td align="center"><sub>Key detail: ideal pitch, listen buttons, what to do</sub></td>
+    <td width="25%"><img src="docs/screenshots/mobile-riyaz.png" alt="Riyaz: Alankars, Ragas and Bhajans, a Start here card and the list of alankars"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-practice.png" alt="Practice: upright keyboard lighting Dha beside the teentaal notation, with the play bar below"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-sounds.png" alt="Sounds and options sheet: harmonium, tanpura, tabla, mic check, taal and speed of notes"></td>
+    <td width="25%"><img src="docs/screenshots/mobile-report.png" alt="Report: 4 of 42 reeds in tune and the keys to fix first"></td>
   </tr>
 </table>
 
-**Landscape keyboard on a phone.** All 42 keys at once, here playing a chord on the reference harmonium.
+**Desktop.**
 
-![Landscape keyboard on a phone in Play mode with the Bass and Male stops out and C4, E4 and G4 held](docs/screenshots/landscape-play.png)
+![Tune on desktop: reading card, advice with steps and progress, and the full keyboard with status dots](docs/screenshots/desktop-tune.png)
 
-**Nepali, Hindi and the White theme.**
+![Play on desktop: stops, octave, hold notes, tanpura, raga highlight and volume above a three-octave keyboard with computer-key labels](docs/screenshots/desktop-play.png)
+
+![Riyaz on desktop: the alankar list, the exercise playing with the current note lit in the notation and on the keyboard](docs/screenshots/desktop-riyaz.png)
 
 <table>
   <tr>
-    <td width="60%"><img src="docs/screenshots/desktop-nepali-white.png" alt="The tuner in Nepali with the White theme: live reading and Nepali tuning instructions for C4"></td>
-    <td width="20%"><img src="docs/screenshots/mobile-nepali.png" alt="Phone in Nepali: toolbar, live reading and bottom tab bar"></td>
-    <td width="20%"><img src="docs/screenshots/mobile-hindi.png" alt="Phone in Hindi: toolbar, live reading and bottom tab bar"></td>
+    <td width="50%"><img src="docs/screenshots/desktop-raga.png" alt="Raga Yaman: exercises, notation, keyboard and the raga's thaat, jati, vadi, samvadi, aaroh, avroh and pakad"></td>
+    <td width="50%"><img src="docs/screenshots/desktop-report.png" alt="Tuning report: summary figures, deviation chart and a table of the keys that need work"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/desktop-welcome.png" alt="First-run setup on desktop: language, Sa key, reed stops and microphone on one card"></td>
+    <td width="50%"><img src="docs/screenshots/desktop-key-details.png" alt="Key details: targets on each bank, ideal vs measured, full instructions and saved readings"></td>
   </tr>
 </table>
 
-<img src="docs/screenshots/settings.png" width="360" alt="Settings in Nepali: theme (System, Light, White, Dark), language, and instrument settings">
+**Nepali, Hindi and the dark theme.**
+
+<table>
+  <tr>
+    <td width="20%"><img src="docs/screenshots/mobile-nepali.png" alt="Home in Nepali"></td>
+    <td width="60%"><img src="docs/screenshots/desktop-hindi.png" alt="Tune in Hindi on desktop"></td>
+    <td width="20%"><img src="docs/screenshots/mobile-dark.png" alt="Tune in the dark theme on a phone"></td>
+  </tr>
+</table>
 
 <details>
-<summary>Dark theme</summary>
+<summary>Dark theme on desktop</summary>
 
-![Bina 17 Tuner in dark theme](docs/screenshots/desktop-dark.png)
+![Play in the dark theme](docs/screenshots/desktop-dark.png)
 
 </details>
 
 ## How to tune with it
 
 1. Open only one reed-bank stop (Bass or Male) and keep the drone stops shut.
-2. Select the same bank in the app. Place the phone 20–30 cm from the reed board in a quiet room.
-3. Pump the bellows to your normal playing pressure and hold each key for about two seconds.
-4. Work through all 42 keys, then switch banks and repeat.
-5. To hear what a key should sound like, use *Hear ideal* on the key, or play it on the reference harmonium.
-   *Ideal vs measured* lets you hear the difference: the faster the beats, the further off the reed is.
-6. Follow each key's instructions. Scrape at the free tip to raise the pitch and near the rivet to lower
-   it, a little at a time, measuring after each round. Old reeds are brittle. If you are unsure, take the
-   report to a harmonium technician.
+2. Choose the same bank at the top of Tune. Place the phone 20–30 cm from the reed board in a quiet room.
+3. Press *Start listening*, pump the bellows to your normal playing pressure and hold each key for about two
+   seconds. A steady reading saves itself.
+4. Work through all 42 keys, then switch banks and repeat. Report lists the keys to fix first.
+5. To hear what a key should sound like, use *Hear target*, or play it in Play. *Ideal vs measured* in Key
+   details lets you hear the difference: the faster the beats, the further off the reed is.
+6. Follow each key's advice. Scrape at the free tip to raise the pitch and near the rivet to lower it, a
+   little at a time, measuring after each round. Old reeds are brittle. If you are unsure, take the report
+   to a harmonium technician.
 
 ## Adding or changing text
 
-All wording is in [src/i18n/messages.js](src/i18n/messages.js), with `en`, `ne` and `hi` tables of the same
-shape. `npm test` fails if a key is missing from any language. To add a language, add a table, an entry in
-`LANGUAGES` and a path in `LANG_PATH`; the build then prerenders a page for it.
+All wording is in [src/i18n/messages.js](src/i18n/messages.js) (tuning, instructions, report, Riyaz) and
+[src/i18n/ui.js](src/i18n/ui.js) (the app shell and screens), each with `en`, `ne` and `hi` tables of the
+same shape. `npm test` fails if a key is missing from any language. To add a language, add a table to both
+files, an entry in `LANGUAGES` and a path in `LANG_PATH`; the build then prerenders its pages.
 
 ## Run locally
 
@@ -140,21 +166,21 @@ Vercel serves over HTTPS, so the microphone works on phones. `vercel.json` also 
 
 ## Search engines and sharing
 
-`npm run build` prerenders real HTML for each language, so search engines and link previews see the full
-page without running JavaScript:
+`npm run build` prerenders real HTML for every section in every language, so search engines and link
+previews see the full page without running JavaScript:
 
-- `/` (English), `/ne/` (Nepali) and `/hi/` (Hindi), each with its own title, description, canonical link and `hreflang`
-  links to the other languages
+- `/`, `/tune/`, `/play/`, `/riyaz/` and `/report/`, and the same under `/ne/` and `/hi/`. Each has its own
+  title, description, canonical link and `hreflang` links to the other languages.
 - Open Graph and Twitter tags with a preview image (`public/og-image.png`), and `WebApplication`
   structured data
-- `robots.txt`, `sitemap.xml` and a web app manifest, so the tuner can be installed to a phone's home screen
+- `robots.txt`, `sitemap.xml` and a web app manifest, so Swara can be installed to a phone's home screen
 
 Absolute URLs (canonical, `hreflang`, `og:image`, sitemap) need the site's public address. On Vercel the
 build reads it from `VERCEL_PROJECT_PRODUCTION_URL`. To use a custom domain, or to build elsewhere, set
 `SITE_URL`:
 
 ```bash
-SITE_URL=https://tuner.example.com npm run build
+SITE_URL=https://swara.example.com npm run build
 ```
 
 After deploying, add the site in [Google Search Console](https://search.google.com/search-console) and
@@ -164,19 +190,34 @@ After deploying, add the site in [Google Search Console](https://search.google.c
 
 ```
 src/
-  lib/dsp.js              YIN pitch detection, key targets (equal / just), reed advice
+  App.jsx                 routing between the five sections, onboarding, shared audio and dialogs
+  components/Nav.jsx      brand mark, desktop sidebar and phone tab bar
+  components/Onboarding.jsx  first-run setup (three steps on phones, one card on desktops)
+  components/Home.jsx     get-started checklist, section doors, quick sounds
+  components/Tune.jsx     live reading, meter, advice, key strip / keyboard and the key details sheet
+  components/Play.jsx     the virtual harmonium, its controls and the landscape view
+  components/Riyaz.jsx    exercise library, practice screen, notation, raga facts and the bhajan editor
+  components/Report.jsx   summary, fix-first list, deviation chart, table and export
+  components/Keys.jsx     every keyboard in the app, flat or upright, for tuning, playing and practice
+  components/Sheet.jsx    bottom sheet on phones, centred dialog on desktops
+  lib/dsp.js              YIN pitch detection, key targets (equal / just)
   lib/instructions.js     per-key tuning instructions built from the readings
   lib/report.js           CSV and copy-to-spreadsheet report
   lib/format.js           formatting, per-key status, short actions
-  lib/harmonium.js        reference harmonium: reed-like Web Audio voices at each key's ideal pitch
+  lib/harmonium.js        reed-like Web Audio voices at each key's ideal pitch
+  lib/music.js            thaats, ragas, taals, alankar patterns and the sargam notation parser
+  lib/practice.js         riyaz audio: tanpura, tabla theka and notation playback, scheduled ahead
+  lib/audio.js            the shared AudioContext and master volume
   hooks/useTuner.js       microphone, detection loop, steady-hold auto-save
-  hooks/useHarmonium.js   playing the reference harmonium (pointer, computer keys), pauses detection meanwhile
-  hooks/useTuningStore.js settings, theme, language and saved readings, persisted to localStorage
-  i18n/messages.js        every user-facing string in English, Nepali and Hindi
-  i18n/I18n.jsx           language context for components
-  components/             Readout, Strobe, Meter, Controls, Keyboard, KeySheet, Instructions, Report, ...
+  hooks/useHarmonium.js   playing the harmonium (pointer, computer keys), pauses detection meanwhile
+  hooks/usePractice.js    riyaz transport for React, playhead and the mic check
+  hooks/useDrone.js       a tanpura drone outside Riyaz (Home and Play)
+  hooks/useMedia.js       the phone / desktop layout switch
+  hooks/useTuningStore.js settings, onboarding, theme, language and saved readings, in localStorage
+  i18n/messages.js        tuning, instruction, report and Riyaz text in English, Nepali and Hindi
+  i18n/ui.js              app shell and screen text in English, Nepali and Hindi
 src/entry-server.jsx      renders the app to HTML for prerendering
-scripts/prerender.mjs     writes /, /ne/, /hi/, head tags, robots.txt and sitemap.xml after the build
-tests/                    accuracy (within 0.1 cent from C2 to F6), instructions, harmonium and translation tests
+scripts/prerender.mjs     writes every language's pages, head tags, robots.txt and sitemap.xml after the build
+tests/                    accuracy (within 0.1 cent from C2 to F6), instructions, harmonium, music data and translation tests
 docs/screenshots/         images used in this README
 ```

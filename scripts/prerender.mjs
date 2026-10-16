@@ -1,6 +1,7 @@
 /*
  * Build step after `vite build` and the SSR build of src/entry-server.jsx:
- * writes real HTML for each language (dist/index.html = English, dist/ne/ = Nepali, dist/hi/ = Hindi)
+ * writes real HTML for each language and section (dist/index.html = English home, dist/ne/ = Nepali,
+ * dist/hi/tune/ = Hindi tuner, …)
  * with its own title, description, canonical and hreflang links, social-preview tags and
  * structured data, plus robots.txt and sitemap.xml.
  *
@@ -23,12 +24,13 @@ const site = host.replace(/\/+$/, '');
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const { render, messagesFor } = await import(pathToFileURL(resolve(SSR, 'entry-server.js')).href);
-const { LANG_PATH } = await import(pathToFileURL(resolve('src/i18n/messages.js')).href);
+const { LANG_PATH, VIEWS, pagePath, seoFor } = await import(pathToFileURL(resolve('src/i18n/messages.js')).href);
 const langs = Object.keys(LANG_PATH);
 const abs = (path) => site + path;
 
-function head(lang) {
-  const seo = messagesFor(lang).seo;
+function head(lang, view) {
+  const seo = seoFor(lang, view);
+  const path = (l) => pagePath(l, view);
   const tags = [
     `<title>${esc(seo.title)}</title>`,
     `<meta name="description" content="${esc(seo.description)}" />`,
@@ -45,10 +47,10 @@ function head(lang) {
   ];
   if (site) {
     tags.push(
-      `<link rel="canonical" href="${abs(LANG_PATH[lang])}" />`,
-      ...langs.map((l) => `<link rel="alternate" hreflang="${l}" href="${abs(LANG_PATH[l])}" />`),
-      `<link rel="alternate" hreflang="x-default" href="${abs(LANG_PATH.en)}" />`,
-      `<meta property="og:url" content="${abs(LANG_PATH[lang])}" />`,
+      `<link rel="canonical" href="${abs(path(lang))}" />`,
+      ...langs.map((l) => `<link rel="alternate" hreflang="${l}" href="${abs(path(l))}" />`),
+      `<link rel="alternate" hreflang="x-default" href="${abs(path('en'))}" />`,
+      `<meta property="og:url" content="${abs(path(lang))}" />`,
       `<meta property="og:image" content="${abs('/og-image.png')}" />`,
       `<meta property="og:image:width" content="1200" />`,
       `<meta property="og:image:height" content="630" />`,
@@ -67,7 +69,7 @@ function head(lang) {
     browserRequirements: 'Requires a microphone and a current web browser',
     isAccessibleForFree: true,
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-    ...(site && { url: abs(LANG_PATH[lang]), image: abs('/og-image.png') }),
+    ...(site && { url: abs(path(lang)), image: abs('/og-image.png') }),
   };
   tags.push(`<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>`);
   return tags.map((t) => '    ' + t).join('\n');
@@ -78,12 +80,13 @@ if (!template.includes('<!-- seo:start') || !template.includes('<!--app-->')) {
   throw new Error('dist/index.html is missing the seo or app markers from index.html');
 }
 
-for (const lang of langs) {
+const pages = langs.flatMap((lang) => VIEWS.map((view) => ({ lang, view, path: pagePath(lang, view) })));
+for (const { lang, view, path } of pages) {
   const html = template
     .replace('<html lang="en">', `<html lang="${lang}">`)
-    .replace(/ *<!-- seo:start[\s\S]*?<!-- seo:end -->/, head(lang))
-    .replace('<!--app-->', render(lang));
-  const dir = resolve(DIST, '.' + LANG_PATH[lang]);
+    .replace(/ *<!-- seo:start[\s\S]*?<!-- seo:end -->/, head(lang, view))
+    .replace('<!--app-->', render(lang, view));
+  const dir = resolve(DIST, '.' + path);
   await mkdir(dir, { recursive: true });
   await writeFile(resolve(dir, 'index.html'), html);
 }
@@ -93,9 +96,9 @@ await writeFile(resolve(DIST, 'robots.txt'), robots);
 
 if (site) {
   const today = new Date().toISOString().slice(0, 10);
-  const alternates = langs.map((l) => `    <xhtml:link rel="alternate" hreflang="${l}" href="${abs(LANG_PATH[l])}" />`)
-    .concat(`    <xhtml:link rel="alternate" hreflang="x-default" href="${abs(LANG_PATH.en)}" />`).join('\n');
-  const urls = langs.map((l) => `  <url>\n    <loc>${abs(LANG_PATH[l])}</loc>\n    <lastmod>${today}</lastmod>\n${alternates}\n  </url>`).join('\n');
+  const alternates = (view) => langs.map((l) => `    <xhtml:link rel="alternate" hreflang="${l}" href="${abs(pagePath(l, view))}" />`)
+    .concat(`    <xhtml:link rel="alternate" hreflang="x-default" href="${abs(pagePath('en', view))}" />`).join('\n');
+  const urls = pages.map((p) => `  <url>\n    <loc>${abs(p.path)}</loc>\n    <lastmod>${today}</lastmod>\n${alternates(p.view)}\n  </url>`).join('\n');
   await writeFile(resolve(DIST, 'sitemap.xml'),
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls}\n</urlset>\n`);
 } else {
@@ -103,4 +106,4 @@ if (site) {
 }
 
 await rm(SSR, { recursive: true, force: true });
-console.log(`prerender: wrote ${langs.map((l) => LANG_PATH[l]).join(', ')}${site ? ' for ' + site : ''}`);
+console.log(`prerender: wrote ${pages.map((p) => p.path).join(', ')}${site ? ' for ' + site : ''}`);

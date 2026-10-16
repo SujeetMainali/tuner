@@ -1,31 +1,39 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { keyTarget } from '../lib/dsp.js';
-import { fmtCents, fmtHz, keyStatus, shortAction } from '../lib/format.js';
+import { fmtHz, keyStatus, shortAction, swaraName } from '../lib/format.js';
 import { reportCsv, reportTsv } from '../lib/report.js';
 import { useI18n } from '../i18n/I18n.jsx';
+import { centsText } from './Tune.jsx';
+import { IconChevron, IconDownload } from './Icons.jsx';
 
-const CHART_RANGE = 25; // cents shown either side of the target in the deviation chart
+const CHART_RANGE = 35; // cents shown either side of the target in the deviation chart
 
-/** All keys on the current reed bank: summary figures, a deviation chart, the table and export. */
-function Report({ keys, readings, bank, tuning, tolerance, selectedMidi, onSelect, onToast }) {
+/**
+ * Report: how many reeds of the current bank are in tune, which to fix first and, on desktops,
+ * the deviation chart and a table of every key, with copy and CSV export.
+ */
+function Report({ phone, keys, readings, bank, tuning, tolerance, settings, onOpenKey, onToast, onView }) {
   const { m, lang } = useI18n();
-  const R = m.report;
+  const U = m.ui.report;
+  const [filter, setFilter] = useState('work');
   const rows = keys.map((k) => ({ k, ...keyStatus(readings, bank, k.midi, tuning, tolerance), target: keyTarget(k.midi, bank, tuning) }));
   const tested = rows.filter((r) => r.reading);
-  const count = (s) => tested.filter((r) => r.status === s).length;
+  const count = (s) => rows.filter((r) => r.status === s).length;
+  const n = { good: count('good'), near: count('near'), off: count('off'), none: count('untested') };
   const avg = tested.length ? tested.reduce((a, r) => a + Math.abs(r.cents), 0) / tested.length : null;
+  const toFix = tested.filter((r) => r.status === 'off' || r.status === 'near').sort((a, b) => Math.abs(b.cents) - Math.abs(a.cents));
+  const action = (r) => (!r.reading ? U.notChecked : r.status === 'good' ? U.leave : r.cents > 0 ? U.sharpLower : U.flatRaise);
 
   const exportCsv = () => {
-    const blob = new Blob(['\ufeff' + reportCsv(keys, readings, bank, tuning, tolerance, lang)], { type: 'text/csv' });
+    const blob = new Blob(['﻿' + reportCsv(keys, readings, bank, tuning, tolerance, lang)], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `bina17-tuning-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `swara-tuning-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
-
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(reportTsv(keys, readings, bank, tuning, tolerance, lang));
@@ -35,88 +43,147 @@ function Report({ keys, readings, bank, tuning, tolerance, selectedMidi, onSelec
     }
   };
 
-  const bandPct = (Math.min(tolerance, CHART_RANGE) / CHART_RANGE) * 50;
-
-  return (
-    <section className="card report" id="report" aria-label={R.title(m.bank[bank])}>
-      <div className="card-head">
-        <h2>{R.title(m.bank[bank])}</h2>
-        <div className="head-actions">
-          <button className="btn" type="button" onClick={copy}>{R.copy}</button>
-          <button className="btn" type="button" onClick={exportCsv}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
-            {R.export}
-          </button>
-        </div>
-      </div>
-
-      <dl className="kpis">
-        <div><dt>{R.tested}</dt><dd className="num">{tested.length}<small> / {rows.length}</small></dd></div>
-        <div><dt>{m.status.good}</dt><dd className="num status-good">{count('good')}</dd></div>
-        <div><dt>{m.status.near}</dt><dd className="num status-near">{count('near')}</dd></div>
-        <div><dt>{m.status.off}</dt><dd className="num status-off">{count('off')}</dd></div>
-        <div><dt>{R.avg}</dt><dd className="num">{avg == null ? '—' : avg.toFixed(1) + '¢'}</dd></div>
-      </dl>
-
-      <div className="chart-block">
-        <div className="chart-head">
-          <h3>{R.chartTitle}</h3>
-          <span className="hint">{R.chartHint({ tol: tolerance, range: CHART_RANGE })}</span>
-        </div>
-        <div className="chart-scroll">
-          <div className="chart" style={{ minWidth: rows.length * 16 }}>
-            <div className="chart-band" style={{ top: 50 - bandPct + '%', height: bandPct * 2 + '%' }} aria-hidden="true" />
-            <div className="chart-zero" aria-hidden="true" />
-            {rows.map(({ k, reading, cents, status }) => {
-              const v = reading ? Math.max(-CHART_RANGE, Math.min(CHART_RANGE, cents)) : 0;
-              const h = reading ? Math.max(1.5, (Math.abs(v) / CHART_RANGE) * 50) : 0;
-              return (
-                <button
-                  key={k.midi}
-                  type="button"
-                  className={'bar-col' + (k.midi === selectedMidi ? ' sel' : '')}
-                  onClick={() => onSelect(k.midi)}
-                  aria-label={`${k.name}: ${reading ? fmtCents(cents) : R.notTested}`}
-                  title={`${k.name} · ${reading ? fmtCents(cents) : R.notTested}`}
-                >
-                  {reading && (
-                    <span className={'bar bg-' + status} style={v > 0 ? { bottom: '50%', height: h + '%' } : { top: '50%', height: h + '%' }} />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <div className="chart-axis num" style={{ minWidth: rows.length * 16 }} aria-hidden="true">
-            {rows.map(({ k }) => <span key={k.midi}>{k.pc === 0 ? k.name : ''}</span>)}
-          </div>
-        </div>
-      </div>
-
-      <div className="table-wrap">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>{R.th.key}</th><th>{R.th.swara}</th><th className="r">{R.th.target}</th><th className="r">{R.th.measured}</th>
-              <th className="r">{R.th.deviation}</th><th className="r">{R.th.steadiness}</th><th>{R.th.status}</th><th>{R.th.action}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ k, reading, cents, status, target }) => (
-              <tr key={k.midi} className={k.midi === selectedMidi ? 'sel' : ''} onClick={() => onSelect(k.midi)}>
-                <td className="num key-cell"><button type="button" className="row-link" onClick={(e) => { e.stopPropagation(); onSelect(k.midi); }}>{k.name}</button></td>
-                <td><span className="sw">{k.swara}</span></td>
-                <td className="r num">{fmtHz(target)}</td>
-                <td className="r num">{reading ? fmtHz(reading.freq) : '—'}</td>
-                <td className={'r num status-' + status}>{reading ? fmtCents(cents) : '—'}</td>
-                <td className="r num muted">{reading ? '±' + reading.spread.toFixed(1) + '¢' : '—'}</td>
-                <td><span className={'status status-' + status}><span className={'dot ' + status} aria-hidden="true" />{m.status[status]}</span></td>
-                <td className="num action">{shortAction(reading ? cents : null, reading?.spread, tolerance, lang)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  const bar = (
+    <div className="stack-bar" role="img" aria-label={U.barAria(n)}>
+      {['good', 'near', 'off', 'none'].map((s) => n[s] > 0 && <span key={s} className={'sb-' + s} style={{ flexGrow: n[s] }} />)}
+    </div>
+  );
+  const legend = (
+    <ul className="sb-legend">
+      {['good', 'near', 'off', 'none'].map((s) => <li key={s}><span className={'ldot ' + (s === 'none' ? 'untested' : s)} />{U.legend[s]} · {n[s]}</li>)}
+    </ul>
+  );
+  const empty = !tested.length && (
+    <section className="card rp-empty">
+      <h2>{U.empty}</h2>
+      <p>{U.emptySub}</p>
+      <button type="button" className="btn-primary" onClick={() => onView('tune')}>{U.emptyCta}</button>
     </section>
+  );
+  const centsCls = (r) => 'rp-cents tone-' + r.status;
+
+  if (phone) {
+    return (
+      <div className="screen report">
+        <header className="ph-head">
+          <h1 className="ph-h1 grow">{U.title}</h1>
+          <button type="button" className="btn-secondary sm" onClick={exportCsv} disabled={!tested.length}><IconDownload />{U.export}</button>
+        </header>
+        <section className="card summary" aria-label={U.summaryAria}>
+          <div className="sum-top"><span>{U.reeds(m.bank[bank])}</span><span>{U.tolerance(tolerance)}</span></div>
+          <div className="sum-big"><span className="sum-n">{n.good}</span><span>{U.inTuneOf(keys.length)}</span></div>
+          {bar}
+          {legend}
+        </section>
+        {empty || (
+          <section aria-labelledby="fix">
+            <div className="sec-head">
+              <h2 id="fix">{U.fixFirst}</h2>
+              <span>{U.furthest}</span>
+            </div>
+            {toFix.length ? (
+              <ul className="fix-list">
+                {toFix.map((r) => (
+                  <li key={r.k.midi}>
+                    <button type="button" onClick={() => onOpenKey(r.k.midi)}>
+                      <span className="fix-sw">{r.k.swara}</span>
+                      <span className="fix-text"><span>{r.k.name.replace('#', '♯')} · {swaraName(r.k, lang)}</span><small>{action(r)}</small></span>
+                      <span className={centsCls(r)}>{centsText(r.cents)}¢</span>
+                      <IconChevron />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="ok-note">{U.allGood}</p>}
+          </section>
+        )}
+        <p className="tech-note">{U.technician}</p>
+      </div>
+    );
+  }
+
+  const shown = rows.filter((r) => (filter === 'all' ? true : filter === 'work' ? r.status === 'off' || r.status === 'near' : !r.reading));
+  const band = (Math.min(tolerance, CHART_RANGE) / CHART_RANGE) * 50;
+  return (
+    <div className="screen report desk">
+      <header className="dk-head row">
+        <div className="dk-head-t">
+          <h1>{U.titleLong}</h1>
+          <p>{U.meta({ bank: m.bank[bank], tol: tolerance, a4: settings.a4, sys: m.system[settings.system === 'just' ? 'just' : 'equal'].toLowerCase() })}</p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={copy} disabled={!tested.length}>{m.report.copy}</button>
+        <button type="button" className="btn-primary" onClick={exportCsv} disabled={!tested.length}>{m.report.export}</button>
+      </header>
+      <dl className="kpis">
+        <div className="card"><dt>{U.legend.good}</dt><dd className="tone-good">{n.good}<small> / {keys.length}</small></dd></div>
+        <div className="card"><dt>{U.kpiNear({ a: tolerance, b: tolerance * 3 })}</dt><dd className="tone-near">{n.near}</dd></div>
+        <div className="card"><dt>{U.kpiOff}</dt><dd className="tone-off">{n.off}</dd></div>
+        <div className="card"><dt>{U.kpiAvg}</dt><dd>{avg == null ? '—' : avg.toFixed(1) + '¢'}</dd></div>
+      </dl>
+      {empty || (
+        <>
+          <section className="card chart-card" aria-labelledby="chart-t">
+            <div className="chart-head"><h2 id="chart-t">{m.report.chartTitle}</h2><span>{U.chartHint(tolerance)}</span></div>
+            <div className="chart-scroll">
+              <div className="chart" role="img" aria-label={U.chartAria} style={{ minWidth: rows.length * 18 }}>
+                <div className="chart-band" style={{ top: 50 - band + '%', height: band * 2 + '%' }} />
+                <div className="chart-zero" />
+                <div className="chart-bars" style={{ gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }}>
+                  {rows.map((r) => {
+                    const v = r.reading ? Math.max(-CHART_RANGE, Math.min(CHART_RANGE, r.cents)) : 0;
+                    const h = r.reading ? Math.max(1.5, (Math.abs(v) / CHART_RANGE) * 50) : 0;
+                    return (
+                      <button key={r.k.midi} type="button" className="bar-col" onClick={() => onOpenKey(r.k.midi)}
+                        aria-label={`${r.k.name}: ${r.reading ? centsText(r.cents) + '¢' : U.notChecked}`} title={`${r.k.name} · ${r.reading ? centsText(r.cents) + '¢' : U.notChecked}`}>
+                        {r.reading
+                          ? <span className={'bar tone-' + r.status} style={v > 0 ? { bottom: '50%', height: h + '%' } : { top: '50%', height: h + '%' }} />
+                          : <span className="bar none" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="chart-axis" style={{ minWidth: rows.length * 18, gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }} aria-hidden="true">
+                {rows.map((r) => <span key={r.k.midi}>{r.k.pc === 0 ? r.k.name : ''}</span>)}
+              </div>
+            </div>
+          </section>
+          <section className="card table-card" aria-labelledby="tbl-t">
+            <div className="table-head">
+              <h2 id="tbl-t">{U.every}</h2>
+              <div className="filters" role="group" aria-label={U.filterAria}>
+                {['work', 'none', 'all'].map((f) => <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>{U.filters[f]}</button>)}
+              </div>
+            </div>
+            <div className="table-scroll">
+              <table className="rp-table">
+                <thead>
+                  <tr>
+                    <th>{m.report.th.key}</th><th>{m.report.th.swara}</th><th>{m.report.th.target}</th><th>{m.report.th.measured}</th>
+                    <th>{m.report.th.deviation}</th><th>{m.report.th.status}</th><th>{U.todo}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((r) => (
+                    <tr key={r.k.midi}>
+                      <td><button type="button" className="row-link" onClick={() => onOpenKey(r.k.midi)}>{r.k.name.replace('#', '♯')}</button></td>
+                      <td className="sw">{r.k.swara}</td>
+                      <td className="mono">{fmtHz(r.target)} Hz</td>
+                      <td className="mono">{r.reading ? fmtHz(r.reading.freq) + ' Hz' : '—'}</td>
+                      <td className={'mono ' + centsCls(r)}>{r.reading ? centsText(r.cents) + '¢' : '—'}</td>
+                      <td><span className={'st-pill ' + r.status}>{U.legend[r.status === 'untested' ? 'none' : r.status]}</span></td>
+                      <td className="todo" title={r.reading ? shortAction(r.cents, r.reading.spread, tolerance, lang) : ''}>{action(r)}</td>
+                    </tr>
+                  ))}
+                  {!shown.length && <tr><td colSpan="7" className="empty-row">{filter === 'work' ? U.allGood : U.none}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <p className="tech-note in">{U.technician}</p>
+          </section>
+        </>
+      )}
+    </div>
   );
 }
 

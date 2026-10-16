@@ -3,6 +3,7 @@ import { WESTERN, noteName } from '../lib/dsp.js';
 import { LANGUAGES } from '../i18n/messages.js';
 import { useI18n } from '../i18n/I18n.jsx';
 import ConfirmButton from './ConfirmButton.jsx';
+import { IconClose } from './Icons.jsx';
 
 const LOWEST_OPTIONS = Array.from({ length: 25 }, (_, i) => 36 + i); // C2..C4
 const THEMES = ['system', 'light', 'white', 'dark'];
@@ -46,9 +47,13 @@ export default function SettingsDialog({ open, settings, theme, onTheme, lang, o
   };
 
   return (
-    <dialog ref={dialog} onClose={onClose} aria-labelledby="settings-title">
+    <dialog ref={dialog} onClose={onClose} aria-labelledby="settings-title"
+      onClick={(e) => { if (e.target === dialog.current) onClose(); }}>
       <form className="dlg" onSubmit={submit}>
-        <h2 id="settings-title" className="dlg-title">{S.title}</h2>
+        <div className="dlg-head">
+          <h2 id="settings-title" className="dlg-title">{S.title}</h2>
+          <button type="button" className="icon-btn" aria-label={m.ui.common.close} onClick={onClose}><IconClose /></button>
+        </div>
 
         <div className="dlg-group" role="group" aria-labelledby="grp-look">
           <div className="label" id="grp-look">{S.appearance}</div>
@@ -113,10 +118,10 @@ export default function SettingsDialog({ open, settings, theme, onTheme, lang, o
         </div>
 
         <div className="dlg-actions">
-          <ConfirmButton className="btn danger" label={S.clearAll} confirmLabel={S.clearAllConfirm} onConfirm={onClearAll} />
+          <ConfirmButton className="btn-danger" label={S.clearAll} confirmLabel={S.clearAllConfirm} onConfirm={onClearAll} />
           <div className="btn-row">
-            <button className="btn" type="button" onClick={onClose}>{S.cancel}</button>
-            <button className="btn primary" type="submit">{S.save}</button>
+            <button className="btn-secondary" type="button" onClick={onClose}>{S.cancel}</button>
+            <button className="btn-primary" type="submit">{S.save}</button>
           </div>
         </div>
       </form>

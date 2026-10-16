@@ -22,6 +22,16 @@ const DEFAULTS = {
   autoSave: true,
   keyboardMode: 'inspect', // 'inspect' selects keys, 'play' sounds the reference harmonium
   stops: { bass: false, male: true, female: false }, // reference harmonium stops
+  riyaz: {
+    tab: 'alankar', thaat: 'bilawal', alankar: 'straight', raga: 'yaman', ragaEx: 'aarohAvroh', song: 'free',
+    bpm: 80, laya: 1, taal: 'teentaal', loop: true, notes: true, drone: true, tabla: true, script: null,
+  },
+  songs: [], // [{ id, title, taal, notation }]
+  onboarded: false, // the first-run setup was finished or skipped
+  goal: 'tune', // what the player wanted to do first: 'tune' | 'play'
+  practised: false, // has played a Riyaz exercise at least once
+  tips: {}, // tip id -> true once dismissed
+  play: { hold: false, oct: 0, raga: '', volume: 0.8, compact: false }, // virtual harmonium
   readings: { bass: {}, male: {}, female: {} }, // bank -> midi -> [{ freq, spread, at }]
 };
 
@@ -38,6 +48,12 @@ function load(urlLang) {
         settings: { ...DEFAULTS.settings, ...(s.settings || {}) },
         readings: { ...DEFAULTS.readings, ...(s.readings || {}) },
         stops: { ...DEFAULTS.stops, ...(s.stops || {}) },
+        riyaz: { ...DEFAULTS.riyaz, ...(s.riyaz || {}) },
+        songs: Array.isArray(s.songs) ? s.songs : [],
+        tips: { ...(s.tips || {}) },
+        play: { ...DEFAULTS.play, ...(s.play || {}) },
+        // Someone who already saved readings has used the app: skip the first-run setup for them.
+        onboarded: s.onboarded ?? Object.values(s.readings || {}).some((b) => Object.keys(b || {}).length),
       });
     }
   } catch {
@@ -67,9 +83,22 @@ export function useTuningStore(urlLang) {
     setAutoSave: useCallback((autoSave) => patch({ autoSave }), [patch]),
     setLang: useCallback((lang) => patch({ lang }), [patch]),
     setTheme: useCallback((theme) => patch({ theme }), [patch]),
+    setRiyaz: useCallback((p) => setState((s) => ({ ...s, riyaz: { ...s.riyaz, ...p } })), []),
+    saveSong: useCallback((song) => setState((s) => {
+      const exists = s.songs.some((x) => x.id === song.id);
+      return { ...s, songs: exists ? s.songs.map((x) => (x.id === song.id ? song : x)) : [...s.songs, song] };
+    }), []),
+    deleteSong: useCallback((id) => setState((s) => ({ ...s, songs: s.songs.filter((x) => x.id !== id) })), []),
     setKeyboardMode: useCallback((keyboardMode) => patch({ keyboardMode }), [patch]),
     toggleStop: useCallback((bank) => setState((s) => ({ ...s, stops: { ...s.stops, [bank]: !s.stops[bank] } })), []),
     selectKey: useCallback((selectedMidi) => patch({ selectedMidi }), [patch]),
+    setStops: useCallback((stops) => patch({ stops }), [patch]),
+    finishOnboarding: useCallback((p = {}) => setState((s) => ({
+      ...s, ...p, settings: { ...s.settings, ...(p.settings || {}) }, onboarded: true,
+    })), []),
+    setPractised: useCallback(() => setState((s) => (s.practised ? s : { ...s, practised: true })), []),
+    dismissTip: useCallback((id) => setState((s) => ({ ...s, tips: { ...s.tips, [id]: true } })), []),
+    setPlay: useCallback((p) => setState((s) => ({ ...s, play: { ...s.play, ...p } })), []),
 
     saveReading: useCallback((midi, freq, spread) => {
       setState((s) => {

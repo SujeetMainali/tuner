@@ -3,6 +3,7 @@
  * Web Audio only; the tone recipe (reedSpectrum) is a pure function so it can be tested in Node.
  */
 import { keyTarget, REED_BANKS } from './dsp.js';
+import { getAudio } from './audio.js';
 
 const HARMONICS = 28;
 const ATTACK = 0.06; // a reed speaks a little after the pallet opens
@@ -26,93 +27,90 @@ export function keyVoices(midi, stops, tuning) {
     .map((b) => ({ bank: b, freq: keyTarget(midi, b, tuning) }));
 }
 
-/** Creates the instrument lazily on first use (browsers only allow audio after a gesture). */
-export function createHarmonium() {
-  let ctx = null;
-  let master = null;
-  let wave = null;
-  const voices = new Map(); // id -> { out, oscs }
+let waveCache = null;
+const reedWave = (ctx) => (waveCache?.ctx === ctx ? waveCache.wave
+  : (waveCache = { ctx, wave: ctx.createPeriodicWave(new Float32Array(HARMONICS), reedSpectrum()) }).wave);
 
-  function ensure() {
-    if (!ctx) {
-      ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -14;
-      comp.ratio.value = 4;
-      master = ctx.createGain();
-      master.gain.value = 0.9;
-      master.connect(comp).connect(ctx.destination);
-      wave = ctx.createPeriodicWave(new Float32Array(HARMONICS), reedSpectrum(), { disableNormalization: false });
-    }
-    if (ctx.state === 'suspended') ctx.resume();
-    return ctx;
-  }
+/**
+ * One reed voice: the given frequencies sounding together from `t0`, through `dest`.
+ * Returns { release(when) }; release schedules the fade-out and stops the oscillators.
+ */
+export function reedVoice(ctx, dest, freqs, t0 = ctx.currentTime, level = VOICE_GAIN) {
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0, t0);
+  out.gain.linearRampToValueAtTime(level, t0 + ATTACK);
+  // Soften the very top of the buzzy spectrum, more for high reeds, as the reed chamber does.
+  const tone = ctx.createBiquadFilter();
+  tone.type = 'lowpass';
+  tone.frequency.value = Math.min(9000, 900 + freqs[0] * 10);
+  tone.Q.value = 0.7;
+  tone.connect(out).connect(dest);
+  const oscs = freqs.map((f) => {
+    const o = ctx.createOscillator();
+    o.setPeriodicWave(reedWave(ctx));
+    o.frequency.value = f;
+    const g = ctx.createGain();
+    g.gain.value = 1 / Math.sqrt(freqs.length);
+    o.connect(g).connect(tone);
+    o.start(t0);
+    return o;
+  });
+  let released = false;
+  return {
+    release(when = ctx.currentTime) {
+      if (released) return;
+      released = true;
+      const t = Math.max(when, ctx.currentTime);
+      // A release scheduled ahead starts from the sustain level; an immediate one from wherever the attack got to.
+      const from = t >= t0 + ATTACK ? level : out.gain.value;
+      out.gain.cancelScheduledValues(t);
+      out.gain.setValueAtTime(from, t);
+      out.gain.linearRampToValueAtTime(0, t + RELEASE);
+      oscs.forEach((o) => o.stop(t + RELEASE + 0.02));
+    },
+  };
+}
+
+/** The playable instrument: voices keyed by id (one per held key), on the shared audio context. */
+export function createHarmonium() {
+  const voices = new Map(); // id -> voice
 
   function stopVoice(id, when) {
     const v = voices.get(id);
     if (!v) return;
     voices.delete(id);
-    const t = Math.max(when ?? 0, ctx.currentTime);
-    // A release scheduled ahead starts from the sustain level; an immediate one from wherever the attack got to.
-    const from = t > ctx.currentTime + ATTACK ? VOICE_GAIN : v.out.gain.value;
-    v.out.gain.cancelScheduledValues(t);
-    v.out.gain.setValueAtTime(from, t);
-    v.out.gain.linearRampToValueAtTime(0, t + RELEASE);
-    v.oscs.forEach((o) => o.stop(t + RELEASE + 0.02));
+    v.release(when);
   }
 
   /** Starts a sustained voice made of the given frequencies; returns its id. */
   function start(id, freqs) {
-    ensure();
+    const { ctx, master } = getAudio();
     stopVoice(id);
-    const t = ctx.currentTime;
-    const out = ctx.createGain();
-    out.gain.setValueAtTime(0, t);
-    out.gain.linearRampToValueAtTime(VOICE_GAIN, t + ATTACK);
-    // Soften the very top of the buzzy spectrum, more for high reeds, as the reed chamber does.
-    const tone = ctx.createBiquadFilter();
-    tone.type = 'lowpass';
-    tone.frequency.value = Math.min(9000, 900 + freqs[0] * 10);
-    tone.Q.value = 0.7;
-    tone.connect(out).connect(master);
-    const oscs = freqs.map((f) => {
-      const o = ctx.createOscillator();
-      o.setPeriodicWave(wave);
-      o.frequency.value = f;
-      const g = ctx.createGain();
-      g.gain.value = 1 / Math.sqrt(freqs.length);
-      o.connect(g).connect(tone);
-      o.start(t);
-      return o;
-    });
-    voices.set(id, { out, oscs });
+    voices.set(id, reedVoice(ctx, master, freqs));
     return id;
   }
 
   /** Sounds the frequencies for a fixed time, e.g. a "hear it" button. Returns seconds. */
   function play(freqs, seconds = 2) {
-    const id = 'once-' + Math.random().toString(36).slice(2);
-    start(id, freqs);
-    stopVoice(id, ctx.currentTime + seconds);
+    const { ctx, master } = getAudio();
+    reedVoice(ctx, master, freqs).release(ctx.currentTime + seconds);
     return seconds;
   }
 
   return {
     start,
     play,
-    stop: (id) => ctx && stopVoice(id),
-    stopAll: () => ctx && [...voices.keys()].forEach((id) => stopVoice(id)),
+    stop: (id) => stopVoice(id),
+    stopAll: () => [...voices.keys()].forEach((id) => stopVoice(id)),
     /** Sounds each group in turn, e.g. the ideal pitch then the measured one. Returns seconds. */
     sequence(parts, seconds = 1.6, gap = 0.25) {
-      ensure();
-      parts.forEach((freqs, i) => setTimeout(() => play(freqs, seconds), (seconds + gap) * i * 1000));
+      const { ctx, master } = getAudio();
+      parts.forEach((freqs, i) => reedVoice(ctx, master, freqs, ctx.currentTime + (seconds + gap) * i).release(ctx.currentTime + (seconds + gap) * i + seconds));
       return parts.length * (seconds + gap);
     },
     isSounding: () => voices.size > 0,
     close() {
-      voices.clear();
-      ctx?.close().catch(() => {});
-      ctx = null;
+      [...voices.keys()].forEach((id) => stopVoice(id));
     },
   };
 }
