@@ -26,8 +26,8 @@ export const STATUS_TEXT = messagesFor('en').status;
 
 export const bankName = (bank, lang = 'en') => messagesFor(lang).bank[bank];
 
-/** Swara of a key: Latin (Sa, Re…) in English, Devanagari (सा, रे…) in Nepali. */
-export const swaraName = (k, lang = 'en') => (lang === 'ne' ? k.swara : k.swaraLatin);
+/** Swara of a key: Latin (Sa, Re…) in English, Devanagari (सा, रे…) in Nepali and Hindi. */
+export const swaraName = (k, lang = 'en') => (lang === 'en' ? k.swaraLatin : k.swara);
 
 export const fmtCents = (c) =>
   c == null || Number.isNaN(c) ? '—' : (c > 0 ? '+' : c < 0 ? '−' : '±') + Math.abs(c).toFixed(1) + '¢';

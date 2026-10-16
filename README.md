@@ -7,7 +7,7 @@ microphone and shows each key's deviation in cents, beat rate and steadiness. It
 reed bank, then gives step-by-step tuning instructions for every key based on what it measured: direction
 and amount, steadiness, the reed's register, progress since the last reading, agreement with the other reed
 bank, and whether the whole instrument sits at a different pitch. It also includes a reference harmonium,
-so you can hear how every key should sound. The interface is available in English and Nepali (नेपाली).
+so you can hear how every key should sound. The interface is available in English, Nepali (नेपाली) and Hindi (हिन्दी).
 
 Built with React and Vite. No backend: readings are stored in the browser (`localStorage`).
 
@@ -31,9 +31,12 @@ Built with React and Vite. No backend: readings are stored in the browser (`loca
   together. The beating you hear is how far off the reed is.
 - **Report.** Shows summary figures and a deviation chart for all keys, then a table with each key's status
   and the action to take. Copy it to a spreadsheet or export it as CSV.
-- **English and Nepali.** Switch with the EN / ने buttons in the app bar. Everything is translated,
-  including the generated tuning instructions and the CSV report; swaras show in Devanagari. It starts in
-  Nepali on devices set to Nepali.
+- **English, Nepali and Hindi.** Switch with the EN / ने / हि buttons in the app bar (a dropdown on phones).
+  Everything is translated, including the generated tuning instructions and the CSV report; swaras show in
+  Devanagari. It starts in the device's language, and `/ne/` and `/hi/` always open in that language.
+- **Landscape keyboard on phones.** The *Landscape* button on the keyboard opens all 42 keys at once, full
+  screen and sideways, so there is no scrolling. It works in Inspect and Play modes. Where the browser
+  allows it the screen locks to landscape; otherwise (iPhone) the view turns itself and you turn the phone.
 - **Status by shape as well as colour** (dot, ring, diamond, dashed ring), so it reads without colour vision.
 - **Themes.** System (follows the device), Light, White (pure white, for bright rooms and printing) and Dark,
   in Settings.
@@ -71,12 +74,17 @@ chord held.
   </tr>
 </table>
 
-**Nepali and the White theme.**
+**Landscape keyboard on a phone.** All 42 keys at once, here playing a chord on the reference harmonium.
+
+![Landscape keyboard on a phone in Play mode with the Bass and Male stops out and C4, E4 and G4 held](docs/screenshots/landscape-play.png)
+
+**Nepali, Hindi and the White theme.**
 
 <table>
   <tr>
-    <td width="68%"><img src="docs/screenshots/desktop-nepali-white.png" alt="The tuner in Nepali with the White theme: live reading and Nepali tuning instructions for C4"></td>
-    <td width="32%"><img src="docs/screenshots/mobile-nepali.png" alt="Phone in Nepali: toolbar, live reading and bottom tab bar"></td>
+    <td width="60%"><img src="docs/screenshots/desktop-nepali-white.png" alt="The tuner in Nepali with the White theme: live reading and Nepali tuning instructions for C4"></td>
+    <td width="20%"><img src="docs/screenshots/mobile-nepali.png" alt="Phone in Nepali: toolbar, live reading and bottom tab bar"></td>
+    <td width="20%"><img src="docs/screenshots/mobile-hindi.png" alt="Phone in Hindi: toolbar, live reading and bottom tab bar"></td>
   </tr>
 </table>
 
@@ -103,8 +111,9 @@ chord held.
 
 ## Adding or changing text
 
-All wording is in [src/i18n/messages.js](src/i18n/messages.js), with an `en` and an `ne` table of the same
-shape. `npm test` fails if a key is missing from either language.
+All wording is in [src/i18n/messages.js](src/i18n/messages.js), with `en`, `ne` and `hi` tables of the same
+shape. `npm test` fails if a key is missing from any language. To add a language, add a table, an entry in
+`LANGUAGES` and a path in `LANG_PATH`; the build then prerenders a page for it.
 
 ## Run locally
 
@@ -129,6 +138,28 @@ Either:
 Vercel serves over HTTPS, so the microphone works on phones. `vercel.json` also sends
 `Permissions-Policy: microphone=(self)`.
 
+## Search engines and sharing
+
+`npm run build` prerenders real HTML for each language, so search engines and link previews see the full
+page without running JavaScript:
+
+- `/` (English), `/ne/` (Nepali) and `/hi/` (Hindi), each with its own title, description, canonical link and `hreflang`
+  links to the other languages
+- Open Graph and Twitter tags with a preview image (`public/og-image.png`), and `WebApplication`
+  structured data
+- `robots.txt`, `sitemap.xml` and a web app manifest, so the tuner can be installed to a phone's home screen
+
+Absolute URLs (canonical, `hreflang`, `og:image`, sitemap) need the site's public address. On Vercel the
+build reads it from `VERCEL_PROJECT_PRODUCTION_URL`. To use a custom domain, or to build elsewhere, set
+`SITE_URL`:
+
+```bash
+SITE_URL=https://tuner.example.com npm run build
+```
+
+After deploying, add the site in [Google Search Console](https://search.google.com/search-console) and
+[Bing Webmaster Tools](https://www.bing.com/webmasters), and submit `https://<your-domain>/sitemap.xml`.
+
 ## Project layout
 
 ```
@@ -141,9 +172,11 @@ src/
   hooks/useTuner.js       microphone, detection loop, steady-hold auto-save
   hooks/useHarmonium.js   playing the reference harmonium (pointer, computer keys), pauses detection meanwhile
   hooks/useTuningStore.js settings, theme, language and saved readings, persisted to localStorage
-  i18n/messages.js        every user-facing string in English and Nepali
+  i18n/messages.js        every user-facing string in English, Nepali and Hindi
   i18n/I18n.jsx           language context for components
   components/             Readout, Strobe, Meter, Controls, Keyboard, KeySheet, Instructions, Report, ...
+src/entry-server.jsx      renders the app to HTML for prerendering
+scripts/prerender.mjs     writes /, /ne/, /hi/, head tags, robots.txt and sitemap.xml after the build
 tests/                    accuracy (within 0.1 cent from C2 to F6), instructions, harmonium and translation tests
 docs/screenshots/         images used in this README
 ```

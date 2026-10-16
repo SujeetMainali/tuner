@@ -6,12 +6,15 @@ const MAX_HISTORY = 6;
 export const DEFAULT_SETTINGS = { a4: 440, system: 'equal', saPc: 0, lowestMidi: 48, keyCount: 42, tolerance: 3 };
 
 const browserLang = () => {
-  try { return (navigator.languages || [navigator.language]).some((l) => /^ne\b/i.test(l)) ? 'ne' : 'en'; } catch { return 'en'; }
+  try {
+    const first = (navigator.languages || [navigator.language]).map((l) => l.slice(0, 2).toLowerCase()).find((l) => ['en', 'ne', 'hi'].includes(l));
+    return first ?? 'en';
+  } catch { return 'en'; }
 };
 
 const DEFAULTS = {
   settings: DEFAULT_SETTINGS,
-  lang: browserLang(), // 'en' | 'ne'
+  lang: browserLang(), // 'en' | 'ne' | 'hi'
   theme: 'system', // 'system' | 'light' | 'white' | 'dark'
   bank: 'male',
   mode: 'auto',
@@ -22,28 +25,30 @@ const DEFAULTS = {
   readings: { bass: {}, male: {}, female: {} }, // bank -> midi -> [{ freq, spread, at }]
 };
 
-function load() {
+/** Saved state, or defaults. A language in the URL (/ne/) wins over the saved one. */
+function load(urlLang) {
+  const withLang = (s) => (urlLang ? { ...s, lang: urlLang } : s);
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      return {
+      return withLang({
         ...DEFAULTS,
         ...s,
         settings: { ...DEFAULTS.settings, ...(s.settings || {}) },
         readings: { ...DEFAULTS.readings, ...(s.readings || {}) },
         stops: { ...DEFAULTS.stops, ...(s.stops || {}) },
-      };
+      });
     }
   } catch {
     // Storage blocked or corrupt: start fresh.
   }
-  return structuredClone(DEFAULTS);
+  return withLang(structuredClone(DEFAULTS));
 }
 
 /** All persisted tuner state: settings, the chosen reed bank and mode, and saved readings. */
-export function useTuningStore() {
-  const [state, setState] = useState(load);
+export function useTuningStore(urlLang) {
+  const [state, setState] = useState(() => load(urlLang));
 
   useEffect(() => {
     try {

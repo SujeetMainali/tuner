@@ -94,7 +94,7 @@ export default function KeySheet({ k, keys, readings, bank, tuning, tolerance, o
             {history.length ? (
               history.map((h) => (
                 <li key={h.at}>
-                  <span>{new Date(h.at).toLocaleString(lang === 'ne' ? 'ne-NP' : [], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                  <span>{new Date(h.at).toLocaleString({ ne: 'ne-NP', hi: 'hi-IN' }[lang] ?? [], { dateStyle: 'short', timeStyle: 'short' })}</span>
                   <span className="num">{fmtHz(h.freq)} Hz · {fmtCents(readingCents(h, k.midi, bank, tuning))}</span>
                 </li>
               ))

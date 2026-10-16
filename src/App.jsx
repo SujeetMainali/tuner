@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildKeys, compareToTarget, keyTarget } from './lib/dsp.js';
+import { buildKeys, compareToTarget, keyTarget, status } from './lib/dsp.js';
 import { bankName, fmtCents, latest, swaraName } from './lib/format.js';
 import { I18nProvider } from './i18n/I18n.jsx';
-import { LANGUAGES, messagesFor } from './i18n/messages.js';
+import { LANG_PATH, LANGUAGES, messagesFor } from './i18n/messages.js';
 import { useHarmonium } from './hooks/useHarmonium.js';
 import { useTuner } from './hooks/useTuner.js';
 import { useTuningStore } from './hooks/useTuningStore.js';
@@ -19,7 +19,7 @@ import TabBar from './components/TabBar.jsx';
 // Browser chrome colour for each forced theme (index.html covers 'system').
 const THEME_COLOR = { light: '#f4f5f7', white: '#ffffff', dark: '#0f1115' };
 
-/** Applies the chosen theme and language to <html>, so CSS and screen readers pick them up. */
+/** Applies the chosen theme and language to <html>, the page title and the URL. */
 function useDocumentPrefs(theme, lang) {
   useEffect(() => {
     const root = document.documentElement;
@@ -30,7 +30,15 @@ function useDocumentPrefs(theme, lang) {
       el.content = THEME_COLOR[theme] ?? el.dataset.auto;
     });
   }, [theme]);
-  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+  useEffect(() => {
+    const seo = messagesFor(lang).seo;
+    document.documentElement.lang = lang;
+    document.title = seo.title;
+    document.querySelector('meta[name="description"]')?.setAttribute('content', seo.description);
+    // Keep the address on the matching language page, so a shared link opens in the same language.
+    const path = LANG_PATH[lang] ?? '/';
+    if (location.pathname !== path) history.replaceState(history.state, '', path + location.search + location.hash);
+  }, [lang]);
 }
 
 function useToast() {
@@ -45,8 +53,8 @@ function useToast() {
   return [message, show];
 }
 
-export default function App() {
-  const [state, act] = useTuningStore();
+export default function App({ urlLang = null }) {
+  const [state, act] = useTuningStore(urlLang);
   const { settings, bank, mode, autoSave, readings, keyboardMode, stops, lang, theme } = state;
   const m = messagesFor(lang);
   useDocumentPrefs(theme, lang);
@@ -118,6 +126,9 @@ export default function App() {
   const first = keys[0];
   const last = keys[keys.length - 1];
   const liveMidi = tuner.live.kind === 'note' ? tuner.live.midi : null;
+  const liveInfo = liveMidi == null ? null : {
+    name: keyByMidi.get(liveMidi)?.name, cents: tuner.live.cents, st: status(tuner.live.cents, settings.tolerance),
+  };
 
   return (
     <I18nProvider lang={lang}>
@@ -141,7 +152,10 @@ export default function App() {
             <span className={'pill' + (tuner.listening ? ' on' : '')}>
               <span className="pill-dot" aria-hidden="true" />{tuner.listening ? m.app.micOn : m.app.micOff}
             </span>
-            <div className="seg seg-sm" role="group" aria-label={m.app.language}>
+            <select className="lang-select" value={lang} aria-label={m.app.language} onChange={(e) => act.setLang(e.target.value)}>
+              {LANGUAGES.map((l) => <option key={l.id} value={l.id} lang={l.id}>{l.label}</option>)}
+            </select>
+            <div className="seg seg-sm lang-seg" role="group" aria-label={m.app.language}>
               {LANGUAGES.map((l) => (
                 <button key={l.id} type="button" lang={l.id} aria-pressed={lang === l.id} title={l.label} onClick={() => act.setLang(l.id)}>
                   {l.short}
@@ -204,6 +218,7 @@ export default function App() {
           tolerance={settings.tolerance}
           selectedMidi={selected.midi}
           liveMidi={liveMidi}
+          live={liveInfo}
           onSelect={selectFromTap}
           mode={keyboardMode}
           onMode={(m) => { harmonium.allOff(); act.setKeyboardMode(m); }}

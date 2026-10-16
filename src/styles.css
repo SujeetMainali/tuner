@@ -84,8 +84,8 @@ a { color: var(--accent); }
 .hint { font-size: 12px; color: var(--muted); }
 .muted { color: var(--muted); }
 /* Devanagari: letter-spacing breaks conjuncts, and small caps-style labels need a size bump. */
-html[lang="ne"] .label, html[lang="ne"] .context dt, html[lang="ne"] .stat dt, html[lang="ne"] .kpis dt, html[lang="ne"] .tbl th { letter-spacing: 0; text-transform: none; font-size: 12px; }
-html[lang="ne"] body { line-height: 1.6; }
+:is(html[lang="ne"], html[lang="hi"]) :is(.label, .context dt, .stat dt, .kpis dt, .tbl th) { letter-spacing: 0; text-transform: none; font-size: 12px; }
+:is(html[lang="ne"], html[lang="hi"]) body { line-height: 1.6; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 kbd { font: 11px var(--font-data); padding: 1px 5px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--surface); color: var(--ink); }
 
@@ -145,7 +145,13 @@ kbd { font: 11px var(--font-data); padding: 1px 5px; border: 1px solid var(--lin
   .pill { display: none; }
   .appbar-end { gap: 8px; }
 }
+.lang-select { display: none; min-height: 40px; padding: 0 28px 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); font-size: 13px; }
+@media (max-width: 719px) {
+  .lang-seg { display: none; }
+  .lang-select { display: block; }
+}
 @media (max-width: 459px) {
+  .brand p { display: none; }
   .appbar .btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .appbar .btn { width: 40px; padding: 0; }
 }
@@ -393,3 +399,33 @@ dialog::backdrop { background: rgb(10 12 16 / .5); }
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13.5px; z-index: 10; box-shadow: 0 6px 20px rgb(0 0 0 / .2); }
 @media (max-width: 719px) { .toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); } }
+
+/* Landscape keyboard: every key on screen at once, no sideways scrolling */
+.landscape-btn { display: none; }
+@media (max-width: 899px) { .landscape-btn { display: inline-flex; } }
+@media (max-width: 519px) { .landscape-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .landscape-btn { width: 40px; padding: 0; } }
+.kb-landscape {
+  position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column;
+  background: var(--surface); color: var(--ink);
+  padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+/* Phone held upright (no orientation lock, e.g. iPhone): turn the panel a quarter turn. */
+@media (orientation: portrait) {
+  .kb-landscape {
+    inset: auto; top: 0; left: 100vw; width: 100vh; width: 100dvh; height: 100vw;
+    transform-origin: top left; transform: rotate(90deg);
+    padding: 8px max(12px, env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom));
+  }
+}
+.kb-landscape::backdrop { background: var(--surface); }
+.kbl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-bottom: 8px; }
+.kbl-title { margin: 0; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.kbl-info { font-size: 13px; color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 120px; }
+.kbl-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.kbl-controls .seg button { min-height: 34px; padding: 0 10px; }
+.kbl-controls .stop { min-height: 32px; }
+.kbl-controls .stops .field-label { display: none; }
+.kbl-keys { flex: 1; min-height: 0; }
+.kbl-keys .kb { height: 100%; min-height: 140px; }
+.kbl-keys.is-playing .kb button { touch-action: none; }
+.kbl-keys .kb .sw { font-size: 14px; }

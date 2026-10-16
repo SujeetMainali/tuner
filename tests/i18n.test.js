@@ -16,11 +16,13 @@ function shape(obj, prefix = '') {
   });
 }
 
-test('Nepali has every message English has, of the same kind', () => {
+test('every language has every message English has, of the same kind', () => {
   const en = new Map(shape(MESSAGES.en));
-  const ne = new Map(shape(MESSAGES.ne));
-  for (const [path, kind] of en) assert.equal(ne.get(path), kind, `ne.${path}`);
-  for (const path of ne.keys()) assert.ok(en.has(path), `ne.${path} has no English`);
+  for (const lang of Object.keys(MESSAGES).filter((l) => l !== 'en')) {
+    const other = new Map(shape(MESSAGES[lang]));
+    for (const [path, kind] of en) assert.equal(other.get(path), kind, `${lang}.${path}`);
+    for (const path of other.keys()) assert.ok(en.has(path), `${lang}.${path} has no English`);
+  }
 });
 
 test('every message function returns non-empty text in both languages', () => {
@@ -29,7 +31,7 @@ test('every message function returns non-empty text in both languages', () => {
   const sample = new Proxy({}, {
     get: (_, k) => (typeof k === 'symbol' ? undefined : k === 'toString' || k === 'valueOf' ? () => 'X' : flags.has(k) ? true : 'X'),
   });
-  for (const lang of ['en', 'ne']) {
+  for (const lang of Object.keys(MESSAGES)) {
     for (const [path] of shape(MESSAGES[lang])) {
       const v = path.split('.').reduce((o, k) => o[k], MESSAGES[lang]);
       if (typeof v !== 'function') continue;
@@ -53,6 +55,15 @@ test('instructions come out in Nepali with the same numbers', () => {
   assert.match(ins.steps.join(' '), /मेल रिड/);
   assert.match(ins.steps.join(' '), /सा/);
   assert.equal(ins.short, '12.0¢ झार्ने · जरा');
+});
+
+test('instructions come out in Hindi', () => {
+  const readings = { bass: {}, male: { 60: [reading(-7)] }, female: {} };
+  const ins = keyInstructions({ k: c4, bank: 'male', readings, tuning, tolerance: 3, keys, lang: 'hi' });
+  assert.equal(ins.tone, 'near');
+  assert.match(ins.headline, /7\.0¢ उतरा हुआ: सिरे से चढ़ाएँ/);
+  assert.match(ins.steps.join(' '), /जीभ साफ़ करें/);
+  assert.equal(ins.short, '7.0¢ चढ़ाएँ · सिरा');
 });
 
 test('short actions and the CSV follow the language', () => {
